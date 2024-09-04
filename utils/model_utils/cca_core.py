@@ -40,6 +40,7 @@ import numpy as np
 
 num_cca_trials = 5
 
+
 def positivedef_matrix_sqrt(array):
     """Stable method for computing matrix square roots, supports complex matrices.
 
@@ -50,10 +51,12 @@ def positivedef_matrix_sqrt(array):
     Returns:
               sqrtarray: The matrix square root of array
     """
-    w, v = np.linalg.eigh(array)  # Return the eigenvalues and eigenvectors of a complex Hermitian (conjugate symmetric) or a real symmetric matrix.
+    w, v = np.linalg.eigh(
+        array)  # Return the eigenvalues and eigenvectors of a complex Hermitian (conjugate symmetric) or a real symmetric matrix.
     #  A - np.dot(v, np.dot(np.diag(w), v.T))
     wsqrt = np.sqrt(w)  # w is eigenvalues, v is eigenvectors
-    sqrtarray = np.dot(v, np.dot(np.diag(wsqrt), np.conj(v).T))  # np.conj(v) return the complex conjugate, element-wise.
+    sqrtarray = np.dot(v,
+                       np.dot(np.diag(wsqrt), np.conj(v).T))  # np.conj(v) return the complex conjugate, element-wise.
     return sqrtarray
 
 
@@ -93,7 +96,7 @@ def remove_small(sigma_xx, sigma_xy, sigma_yx, sigma_yy, epsilon):
 
 
 def compute_ccas(sigma_xx, sigma_xy, sigma_yx, sigma_yy, epsilon,
-                 verbose=True): # epsilon = 0
+                 verbose=True):  # epsilon = 0
     """Main cca computation function, takes in variances and crossvariances.
 
     This function takes in the covariances and cross covariances of X, Y,
@@ -139,7 +142,7 @@ def compute_ccas(sigma_xx, sigma_xy, sigma_yx, sigma_yy, epsilon,
         return ([0, 0, 0], [0, 0, 0], np.zeros_like(sigma_xx),
                 np.zeros_like(sigma_yy), x_idxs, y_idxs)
 
-    if verbose:   # verbose = True
+    if verbose:  # verbose = True
         print("adding eps to diagonal and taking inverse")
     sigma_xx += epsilon * np.eye(numx)
     sigma_yy += epsilon * np.eye(numy)
@@ -182,7 +185,7 @@ def sum_threshold(array, threshold):
     assert (threshold >= 0) and (threshold <= 1), "print incorrect threshold"
 
     for i in range(len(array)):
-        if np.sum(array[:i])/np.sum(array) >= threshold:
+        if np.sum(array[:i]) / np.sum(array) >= threshold:
             return i
 
 
@@ -263,7 +266,8 @@ def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
     """
 
     # assert dimensionality equal
-    assert acts1.shape[1] == acts2.shape[1], "dimensions don't match"  # acts1.shape[1] == acts2.shape[1]=1000, 1000 data points
+    assert acts1.shape[1] == acts2.shape[
+        1], "dimensions don't match"  # acts1.shape[1] == acts2.shape[1]=1000, 1000 data points
     # check that acts1, acts2 are transposition
     assert acts1.shape[0] < acts1.shape[1], ("input must be number of neurons"
                                              "by datapoints")
@@ -297,10 +301,9 @@ def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
         return create_zero_dict(compute_dirns, acts1.shape[1])
 
     if compute_coefs:
-
         # also compute full coefficients over all neurons  # x_idx = [True,...True] len(x_idx)=100,  y_idx = [True,...True] len(y_idx)=50
-        x_mask = np.dot(x_idxs.reshape((-1, 1)), x_idxs.reshape((1, -1))) # x_mask: 100x100, all True
-        y_mask = np.dot(y_idxs.reshape((-1, 1)), y_idxs.reshape((1, -1))) # y_mask: 50x50, all True
+        x_mask = np.dot(x_idxs.reshape((-1, 1)), x_idxs.reshape((1, -1)))  # x_mask: 100x100, all True
+        y_mask = np.dot(y_idxs.reshape((-1, 1)), y_idxs.reshape((1, -1)))  # y_mask: 50x50, all True
 
         return_dict["coef_x"] = u.T  # shape: [100, 100]
         return_dict["invsqrt_xx"] = invsqrt_xx
@@ -326,7 +329,7 @@ def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
         return_dict["neuron_means1"] = neuron_means1
         return_dict["neuron_means2"] = neuron_means2
 
-    if compute_dirns: # false here
+    if compute_dirns:  # false here
         # orthonormal directions that are CCA directions
         cca_dirns1 = np.dot(np.dot(return_dict["full_coef_x"],
                                    return_dict["full_invsqrt_xx"]),
@@ -397,8 +400,8 @@ def robust_cca_similarity(acts1, acts2, threshold=0.98, epsilon=1e-6,
         try:
             return_dict = get_cca_similarity(acts1, acts2, threshold, compute_dirns)
         except np.LinAlgError:
-            acts1 = acts1*1e-1 + np.random.normal(size=acts1.shape)*epsilon
-            acts2 = acts2*1e-1 + np.random.normal(size=acts1.shape)*epsilon
+            acts1 = acts1 * 1e-1 + np.random.normal(size=acts1.shape) * epsilon
+            acts2 = acts2 * 1e-1 + np.random.normal(size=acts1.shape) * epsilon
             if trial + 1 == num_cca_trials:
                 raise
 

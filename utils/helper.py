@@ -31,9 +31,9 @@ class Paths:
 
 class ModelConfig:
     def __init__(
-        self,
-        model_name: str,
-        device: torch.device = torch.device("cuda:0"),
+            self,
+            model_name: str,
+            device: torch.device = torch.device("cuda:0"),
     ) -> None:
         """
         Initialize the configuration for the model.
@@ -71,17 +71,17 @@ class ModelConfig:
 
 class DataConfig:
     def __init__(
-        self,
-        dataset_name: str,
-        device: torch.device = torch.device("cuda:0"),
-        max_length: int = 512,
-        batch_size: int = 4,
-        valid_size: float = 0.1,
-        num_workers: int = 4,
-        pin_memory: bool = True,
-        seed: int = 42,
-        return_fields: Optional[List[str]] = None,
-        do_cache: bool = True,
+            self,
+            dataset_name: str,
+            device: torch.device = torch.device("cuda:0"),
+            max_length: int = 512,
+            batch_size: int = 4,
+            valid_size: float = 0.1,
+            num_workers: int = 4,
+            pin_memory: bool = True,
+            seed: int = 42,
+            return_fields: Optional[List[str]] = None,
+            do_cache: bool = True,
     ) -> None:
         if return_fields is None:
             return_fields = ["input_ids", "attention_mask", "labels"]

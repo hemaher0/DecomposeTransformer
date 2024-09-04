@@ -21,6 +21,21 @@ class CustomDataset(data_utils.Dataset):
         return {key: self.data[key][index] for key in self.data_config.return_fields}
 
 
+class EmbeddingDataset(data_utils.Dataset):
+    def __init__(self, embeddings, labels=None, attention_mask=None):
+        self.embeddings = embeddings
+        self.labels = labels
+        self.attention_mask = attention_mask
+
+    def __len__(self):
+        return len(self.embeddings)
+
+    def __getitem__(self, index):
+        return {"embeddings": self.embeddings[index],
+                "labels": self.labels[index],
+                "attention_mask": self.attention_mask[index]}
+
+
 def tokenize_dataset(raw_dataset, tokenizer, data_config):
     tokenized_datasets = {field: [] for field in data_config.return_fields}
     for example in tqdm(raw_dataset, desc="Tokenizing dataset", ascii=True):
@@ -160,16 +175,16 @@ def load_data(dataset_name, batch_size=32, valid_size=0.1, num_workers=4, pin_me
 
 
 # def convert_dataset_labels_to_binary(dataloader, target_class, is_stratified=False):
-#     input_ids, attention_masks, labels = [], [], []
+#     input_ids, attention_mask, labels = [], [], []
 #     for batch in dataloader:
 #         input_ids.append(batch["input_ids"])
-#         attention_masks.append(batch["attention_mask"])
+#         attention_mask.append(batch["attention_mask"])
 #
 #         binary_labels = (batch["labels"] == target_class).long()
 #         labels.append(binary_labels)
 #
 #     input_ids = torch.cat(input_ids)
-#     attention_masks = torch.cat(attention_masks)
+#     attention_mask = torch.cat(attention_mask)
 #     labels = torch.cat(labels)
 #
 #     if is_stratified:
@@ -197,10 +212,10 @@ def load_data(dataset_name, batch_size=32, valid_size=0.1, num_workers=4, pin_me
 #
 #         # Subset the data to the balanced indices
 #         input_ids = input_ids[balanced_indices]
-#         attention_masks = attention_masks[balanced_indices]
+#         attention_mask = attention_mask[balanced_indices]
 #         labels = labels[balanced_indices]
 #
-#     transformed_dataset = CustomDataset(input_ids, attention_masks, labels)
+#     transformed_dataset = CustomDataset(input_ids, attention_mask, labels)
 #     transformed_dataloader = DataLoader(
 #         transformed_dataset, batch_size=dataloader.batch_size
 #     )
@@ -211,20 +226,20 @@ def load_data(dataset_name, batch_size=32, valid_size=0.1, num_workers=4, pin_me
 # def extract_and_convert_dataloader(dataloader, true_index, false_index):
 #     # Extract the data using the provided indices
 #
-#     input_ids, attention_masks, labels = [], [], []
+#     input_ids, attention_mask, labels = [], [], []
 #
 #     for batch in dataloader:
 #         mask = (batch["labels"] == true_index) | (batch["labels"] == false_index)
 #         if mask.any():
 #             input_ids.append(batch["input_ids"][mask])
-#             attention_masks.append(batch["attention_mask"][mask])
+#             attention_mask.append(batch["attention_mask"][mask])
 #             labels.append(batch["labels"][mask])
 #
 #     input_ids = torch.cat(input_ids, dim=0)
-#     attention_masks = torch.cat(attention_masks, dim=0)
+#     attention_mask = torch.cat(attention_mask, dim=0)
 #     labels = torch.cat(labels, dim=0)
 #
-#     subset_dataset = CustomDataset(input_ids, attention_masks, labels)
+#     subset_dataset = CustomDataset(input_ids, attention_mask, labels)
 #     subset_dataloader = DataLoader(subset_dataset, batch_size=dataloader.batch_size)
 #
 #     # Apply convert_dataset_labels_to_binary

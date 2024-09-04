@@ -30,7 +30,7 @@ def evaluate_model(model, model_config, test_dataloader, is_binary=False):
     model = model.to(model_config.device)
 
     for batch in tqdm(
-        test_dataloader, desc="Evaluating", dynamic_ncols=True
+            test_dataloader, desc="Evaluating", dynamic_ncols=True
     ):
         input_ids = batch["input_ids"].to(model_config.device)
         attention_mask = batch["attention_mask"].to(model_config.device)
@@ -47,12 +47,65 @@ def evaluate_model(model, model_config, test_dataloader, is_binary=False):
             all_preds.extend(pred.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
+        del input_ids, attention_mask, labels, logits, outputs, loss, pred
+        torch.cuda.empty_cache()
+
     model = model.to(torch.device("cpu"))
     avg_loss = total_loss / len(test_dataloader)
     precision, recall, f1, _ = precision_recall_fscore_support(
         all_labels,
         all_preds,
         average="binary" if is_binary else "macro",
+        zero_division=0,
+    )
+
+    report = classification_report(all_labels, all_preds, zero_division=0)
+    print(f"Loss: {avg_loss:.4f}")
+    print(f"Precision: {precision:.4f}, Recall: {recall:.4f}, F1-Score: {f1:.4f}")
+    print(report)
+
+    return {
+        "loss": avg_loss,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1,
+        "report": report,
+    }
+
+
+def evaluate_embeddings(model, model_config, test_dataloader):
+    model.eval()
+    total_loss = 0
+    all_preds = []
+    all_labels = []
+
+    loss_fn = nn.CrossEntropyLoss()
+    model = model.to(model_config.device)
+
+    for batch in tqdm(
+            test_dataloader, desc="Evaluating", dynamic_ncols=True
+    ):
+        embeddings = batch["embeddings"].to(model_config.device)
+        attention_mask = batch["attention_mask"].to(model_config.device)
+        labels = batch["labels"].to(model_config.device)
+
+        with torch.no_grad():
+            outputs = model(inputs_embeds=embeddings, attention_mask=attention_mask)
+            logits = outputs.logits
+
+            loss = loss_fn(logits, labels)
+            pred = logits.argmax(dim=1)
+
+            total_loss += loss.mean().item()
+            all_preds.extend(pred.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    model = model.to(torch.device("cpu"))
+    avg_loss = total_loss / len(test_dataloader)
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        all_labels,
+        all_preds,
+        average="macro",
         zero_division=0,
     )
 
@@ -98,14 +151,14 @@ def get_sparsity(model, layer_types=None, include_layers=None, exclude_layers=No
 
 
 def similar(
-    model: Module,
-    module: Module,
-    dataloader: DataLoader,
-    concern: int,
-    num_samples,
-    num_labels,
-    device: torch.device = torch.device("cpu"),
-    seed=44,
+        model: Module,
+        module: Module,
+        dataloader: DataLoader,
+        concern: int,
+        num_samples,
+        num_labels,
+        device: torch.device = torch.device("cpu"),
+        seed=44,
 ) -> None:
     positive_samples = SamplingDataset(
         dataloader,

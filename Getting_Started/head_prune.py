@@ -13,7 +13,7 @@ from utils.dataset_utils.load_dataset import (
 )
 from utils.model_utils.save_module import save_module
 from utils.model_utils.load_model import load_model
-from utils.model_utils.evaluate import evaluate_model, get_sparsity
+from utils.model_utils.evaluate import evaluate_model, get_sparsity, similar
 from utils.dataset_utils.sampling import SamplingDataset
 from utils.prune_utils.prune_head import (
     compute_heads_importance,
@@ -97,24 +97,13 @@ def main():
 
     module = copy.deepcopy(model)
 
-    (
-        attn_entropy,
-        head_importance,
-        preds,
-        labels,
-        per_class_head_importance_list,
-    ) = compute_heads_importance(
-        module,
-        model_config,
-        positive_samples,
-    )
-
     head_importance_prunning(
-        module, args.concern, per_class_head_importance_list, args.head_pruning_ratio
+        module, model_config, positive_samples, args.concern, args.head_pruning_ratio
     )
 
     print(get_sparsity(module)[0])
     result = evaluate_model(module, model_config, test_dataloader)
+    similar(model, module, valid_dataloader, args.concern, args.num_samples, num_labels, device=device, seed=args.seed)
     # save_module(module, "Modules/", "module.pt")
     torch.cuda.empty_cache()
 

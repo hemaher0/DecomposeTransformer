@@ -7,18 +7,18 @@ import os
 os.chdir("../../../")
 
 file_list = [
-    "Getting_Started/ipynb/Pruned by Head Pruning only/IMDB/Prune by Head Pruning only(20%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/IMDB/Prune by Head Pruning only(30%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/IMDB/Prune by Head Pruning only(40%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/IMDB/Prune by Head Pruning only(50%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/OSDG/Prune by Head Pruning only(20%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/OSDG/Prune by Head Pruning only(30%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/OSDG/Prune by Head Pruning only(40%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/OSDG/Prune by Head Pruning only(50%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/Yahoo/Prune by Head Pruning only(20%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/Yahoo/Prune by Head Pruning only(30%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/Yahoo/Prune by Head Pruning only(40%).ipynb",
-    "Getting_Started/ipynb/Pruned by Head Pruning only/Yahoo/Prune by Head Pruning only(50%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/IMDB/Prune by Head Pruning only(30%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/IMDB/Prune by Head Pruning only(40%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/IMDB/Prune by Head Pruning only(50%).ipynb",
+    "Getting_Started/ipynb/Pruned by Head Pruning only/IMDB/Prune by Head Pruning only(60%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/OSDG/Prune by Head Pruning only(30%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/OSDG/Prune by Head Pruning only(40%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/OSDG/Prune by Head Pruning only(50%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/OSDG/Prune by Head Pruning only(60%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/Yahoo/Prune by Head Pruning only(30%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/Yahoo/Prune by Head Pruning only(40%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/Yahoo/Prune by Head Pruning only(50%).ipynb",
+    # "Getting_Started/ipynb/Pruned by Head Pruning only/Yahoo/Prune by Head Pruning only(60%).ipynb",
 ]
 
 script_start_time = datetime.now()

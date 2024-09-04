@@ -13,7 +13,7 @@ from utils.dataset_utils.load_dataset import (
 )
 from utils.model_utils.save_module import save_module
 from utils.model_utils.load_model import load_model
-from utils.model_utils.evaluate import evaluate_model, get_sparsity
+from utils.model_utils.evaluate import evaluate_model, get_sparsity, similar
 from utils.dataset_utils.sampling import SamplingDataset
 from utils.prune_utils.prune import (
     prune_concern_identification,
@@ -101,10 +101,12 @@ def main():
     color_print("#Module " + str(args.concern) + " in progress....")
 
     positive_samples = SamplingDataset(
-        train_dataloader, args.concern, args.num_samples, num_labels, True, 4, device=device, resample=False, seed=args.seed
+        train_dataloader, args.concern, args.num_samples, num_labels, True, 4, device=device, resample=False,
+        seed=args.seed
     )
     negative_samples = SamplingDataset(
-        train_dataloader, args.concern, args.num_samples, num_labels, False, 4, device=device, resample=False, seed=args.seed
+        train_dataloader, args.concern, args.num_samples, num_labels, False, 4, device=device, resample=False,
+        seed=args.seed
     )
     all_samples = SamplingDataset(
         train_dataloader, 200, args.num_samples, num_labels, False, 4, device=device, resample=False, seed=args.seed
@@ -127,6 +129,7 @@ def main():
 
     print(get_sparsity(module)[0])
     # result = evaluate_model(module, model_config, test_dataloader)
+    # similar(model, module, valid_dataloader, args.concern, args.num_samples, num_labels, device=device, seed=args.seed)
     recover_tangling_identification(
         model,
         module,
@@ -139,6 +142,7 @@ def main():
     )
     print(get_sparsity(module)[0])
     result = evaluate_model(module, model_config, test_dataloader)
+    similar(model, module, valid_dataloader, args.concern, args.num_samples, num_labels, device=device, seed=args.seed)
     # save_module(module, "Modules/", "module.pt")
     torch.cuda.empty_cache()
 

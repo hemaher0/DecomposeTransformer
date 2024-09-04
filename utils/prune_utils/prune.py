@@ -5,14 +5,13 @@ from typing import *
 from torch import Tensor
 from torch.nn import Module
 import torch.nn.functional as F
-
+from functools import partial
 from utils.dataset_utils.sampling import SamplingDataset
 from utils.helper import ModelConfig
 
 
 class Methods:
-    def __init__(self, method_type: str, ratio: float) -> None:
-        self.method_type = method_type
+    def __init__(self, ratio: float) -> None:
         self.ratio = ratio
 
     def wanda(self, layer, inputs, outputs):
@@ -78,7 +77,6 @@ class Methods:
     def ti(self, layer, inputs, outputs, ref_layer):
         current_weight = layer.weight.data
         original_weight = ref_layer.weight.data
-
         X = inputs[0]
 
         batch_size = X.shape[0] // 2
@@ -104,45 +102,51 @@ class Methods:
 
         sine_similarity = torch.sign(cosine_similarity) * torch.sqrt(1 - cosine_similarity ** 2)
         euclidean_distance = torch.sqrt(concern_norm ** 2 + non_concern_norm ** 2)
-        coefficient = all_norm + sine_similarity * torch.abs(
-            all_norm + concern_norm
+        coefficient = concern_norm + sine_similarity * torch.abs(
+            concern_norm + non_concern_norm
         ) / euclidean_distance
         importance_score = torch.abs(current_weight - original_weight) * torch.abs(coefficient)
 
-        flattened_importance_score = importance_score.reshape(-1)
-        flattened_original_weight = original_weight.reshape(-1)
-        flattened_current_weight = current_weight.reshape(-1)
+        W_mask = torch.zeros_like(importance_score) == 1
+        sort_res = torch.sort(importance_score, dim=-1, descending=True, stable=True)
+        indices = sort_res[1][:, : int(importance_score.shape[1] * self.ratio)]
+        W_mask.scatter_(1, indices, True)
+        current_weight[W_mask] = original_weight[W_mask]
 
-        # Sort importance scores in descending order
-        sort_res = torch.sort(flattened_importance_score, descending=True)
-        sorted_indices = sort_res[1]
+        # flattened_importance_score = importance_score.reshape(-1)
+        # flattened_original_weight = original_weight.reshape(-1)
+        # flattened_current_weight = current_weight.reshape(-1)
 
-        # Determine the number of elements to restore based on sparsity ratio
-        num_elements_to_restore = int(
-            flattened_importance_score.shape[0] * self.ratio
-        )
+        # # Sort importance scores in descending order
+        # sort_res = torch.sort(flattened_importance_score, descending=True)
+        # sorted_indices = sort_res[1]
 
-        # Identify weights that are not included in the current model
-        not_included_mask = flattened_original_weight != flattened_current_weight
+        # # Determine the number of elements to restore based on sparsity ratio
+        # num_elements_to_restore = int(
+        #     flattened_importance_score.shape[0] * self.ratio
+        # )
 
-        # Get the indices of not included weights from the sorted list
-        sorted_not_included_indices = sorted_indices[not_included_mask[sorted_indices]]
+        # # Identify weights that are not included in the current model
+        # not_included_mask = flattened_original_weight != flattened_current_weight
 
-        # Select top num_elements_to_restore indices from not included weights
-        if len(sorted_not_included_indices) > num_elements_to_restore:
-            restore_indices = sorted_not_included_indices[:num_elements_to_restore]
-        else:
-            restore_indices = sorted_not_included_indices
+        # # Get the indices of not included weights from the sorted list
+        # sorted_not_included_indices = sorted_indices[not_included_mask[sorted_indices]]
 
-        # Create mask for restoring weights
-        W_mask = torch.zeros_like(flattened_current_weight, dtype=torch.bool)
-        W_mask[restore_indices] = True
+        # # Select top num_elements_to_restore indices from not included weights
+        # if len(sorted_not_included_indices) > num_elements_to_restore:
+        #     restore_indices = sorted_not_included_indices[:num_elements_to_restore]
+        # else:
+        #     restore_indices = sorted_not_included_indices
 
-        # Restore the weights based on the mask
-        flattened_current_weight[W_mask] = flattened_original_weight[W_mask]
+        # # Create mask for restoring weights
+        # W_mask = torch.zeros_like(flattened_current_weight, dtype=torch.bool)
+        # W_mask[restore_indices] = True
 
-        # Reshape weights back to their original shape
-        current_weight.copy_(flattened_current_weight.view_as(current_weight))
+        # # Restore the weights based on the mask
+        # flattened_current_weight[W_mask] = flattened_original_weight[W_mask]
+
+        # # Reshape weights back to their original shape
+        # current_weight.copy_(flattened_current_weight.view_as(current_weight))
 
 
 def find_layers(
@@ -188,18 +192,27 @@ def get_hook(method):
     return hook
 
 
-def propagate(model, dataloader, device, chunk_size=4):
+def propagate(model, dataloader, device, is_embeds=False, chunk_size=4):
     all_outputs = []
     chunk_outputs = []
 
     model = model.to(device)
     for batch in dataloader:
-        input_ids = batch["input_ids"].to(device)
         attn_mask = batch["attention_mask"].to(device)
+        if not is_embeds:
+            input_ids = batch["input_ids"].to(device)
+        else:
+            inputs_embeds = batch["embeddings"].to(device)
+
         with torch.no_grad():
-            output = model(
-                input_ids, attention_mask=attn_mask, output_hidden_states=True
-            )
+            if not is_embeds:
+                output = model(
+                    input_ids, attention_mask=attn_mask, output_hidden_states=True
+                )
+            else:
+                output = model(
+                    inputs_embeds=inputs_embeds, attention_mask=attn_mask, output_hidden_states=True
+                )
             chunk_outputs.append(output.hidden_states[-1])
             if len(chunk_outputs) == chunk_size:
                 all_outputs.append(torch.cat(chunk_outputs))
@@ -258,6 +271,7 @@ def prune_concern_identification(
         sparsity_ratio: float = 0.6,
         include_layers: Optional[List[str]] = None,
         exclude_layers: Optional[List[str]] = None,
+        is_embeds: bool = False
 ) -> None:
     layers = find_layers(
         model, include_layers=include_layers, exclude_layers=exclude_layers
@@ -265,7 +279,7 @@ def prune_concern_identification(
     device = model_config.device
     handle_list = []
 
-    method = Methods("ci", sparsity_ratio)
+    method = Methods(sparsity_ratio)
     for name, layer in layers.items():
         handle = layer.register_forward_hook(method.ci)
         handle_list.append(handle)
@@ -276,12 +290,15 @@ def prune_concern_identification(
     if len(dominant_batches) != len(non_dominant_batches):
         raise ValueError("Batch sizes of dominant_concern and non_dominant_concern does not match.")
 
-    combined_input_ids = torch.cat([batch["input_ids"] for batch in dominant_batches + non_dominant_batches])
     combined_attn_mask = torch.cat([batch["attention_mask"] for batch in dominant_batches + non_dominant_batches])
+    if not is_embeds:
+        combined_input_ids = torch.cat([batch["input_ids"] for batch in dominant_batches + non_dominant_batches])
+        combined_dataloader = [{"input_ids": combined_input_ids, "attention_mask": combined_attn_mask}]
+    else:
+        combined_embeddings = torch.cat([batch["embeddings"] for batch in dominant_batches + non_dominant_batches])
+        combined_dataloader = [{"embeddings": combined_embeddings, "attention_mask": combined_attn_mask}]
 
-    combined_dataloader = [{"input_ids": combined_input_ids, "attention_mask": combined_attn_mask}]
-
-    propagate(model, combined_dataloader, device)
+    propagate(model, combined_dataloader, device, is_embeds)
 
     for handle in handle_list:
         handle.remove()
@@ -293,7 +310,7 @@ def recover_tangling_identification(
         model_config: ModelConfig,
         dominant_concern: SamplingDataset,
         non_dominant_concern: SamplingDataset,
-        recovery_ratio: float = 0.4,
+        recovery_ratio: float = 0.1,
         include_layers: Optional[List[str]] = None,
         exclude_layers: Optional[List[str]] = None,
 ):
@@ -307,7 +324,7 @@ def recover_tangling_identification(
 
     handle_list = []
 
-    method = Methods("ti", recovery_ratio)
+    method = Methods(recovery_ratio)
     for (ref_name, ref_layer), (target_name, target_layer) in zip(
             ref_layers.items(), target_layers.items()
     ):
@@ -327,7 +344,7 @@ def recover_tangling_identification(
 
     combined_dataloader = [{"input_ids": combined_input_ids, "attention_mask": combined_attn_mask}]
 
-    propagate(model, combined_dataloader, device)
+    propagate(module, combined_dataloader, device)
 
     for handle in handle_list:
         handle.remove()
@@ -347,7 +364,7 @@ def prune_wanda(
     device = model_config.device
     handle_list = []
 
-    method = Methods("wanda", sparsity_ratio)
+    method = Methods(sparsity_ratio)
     for name, layer in layers.items():
         handle = layer.register_forward_hook(method.wanda)
         handle_list.append(handle)

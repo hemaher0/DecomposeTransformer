@@ -13,7 +13,7 @@ from utils.dataset_utils.load_dataset import (
 )
 from utils.model_utils.save_module import save_module
 from utils.model_utils.load_model import load_model
-from utils.model_utils.evaluate import evaluate_model, get_sparsity
+from utils.model_utils.evaluate import evaluate_model, get_sparsity, similar
 from utils.dataset_utils.sampling import SamplingDataset
 from utils.prune_utils.prune import (
     prune_wanda
@@ -107,6 +107,7 @@ def main():
     print(get_sparsity(module)[0])
 
     result = evaluate_model(module, model_config, test_dataloader)
+    similar(model, module, valid_dataloader, args.concern, args.num_samples, num_labels, device=device, seed=args.seed)
     # save_module(module, "Modules/", f"wanda_{args.name}_{args.wanda_ratio}p.pt")
     torch.cuda.empty_cache()
 

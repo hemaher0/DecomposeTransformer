@@ -1,5 +1,6 @@
 import torch
 
+
 def check_device(device):
     if device.startswith("cuda"):
         if not torch.cuda.is_available():
@@ -17,20 +18,22 @@ def check_device(device):
     else:
         return False, "Unknown device type."
 
+
 def main():
     import sys
     if len(sys.argv) != 2:
         print("Usage: python3 torchtest.py <device>")
         sys.exit(1)
-    
+
     device = sys.argv[1]
     is_available, message = check_device(device)
-    
+
     if is_available:
         print(f"Device {device} is available: {message}")
     else:
         print(f"Device {device} is not available: {message}")
     return is_available
+
 
 if __name__ == "__main__":
     main()

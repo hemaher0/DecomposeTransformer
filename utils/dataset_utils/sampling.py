@@ -62,7 +62,7 @@ class SamplingDataset(IterableDataset):
         # Loop through batches and collect data
         for batch in self.dataloader:
             b_input_ids = batch["input_ids"]
-            b_attention_masks = batch["attention_mask"]
+            b_attention_mask = batch["attention_mask"]
             b_labels = batch["labels"]
 
             for class_id, target_count in class_sample_counts.items():
@@ -71,7 +71,7 @@ class SamplingDataset(IterableDataset):
 
                 mask = b_labels == class_id
                 selected_input_ids = b_input_ids[mask]
-                selected_attention_masks = b_attention_masks[mask]
+                selected_attention_mask = b_attention_mask[mask]
                 selected_labels = b_labels[mask]
 
                 num_selected = selected_labels.size(0)
@@ -82,14 +82,14 @@ class SamplingDataset(IterableDataset):
                 num_selected = min(num_selected, remaining_samples)
 
                 selected_input_ids = selected_input_ids[:num_selected]
-                selected_attention_masks = selected_attention_masks[:num_selected]
+                selected_attention_mask = selected_attention_mask[:num_selected]
                 selected_labels = selected_labels[:num_selected]
 
                 total_sampled[class_id] += num_selected
 
                 if num_selected > 0:
                     sampled_ids.append(selected_input_ids)
-                    sampled_masks.append(selected_attention_masks)
+                    sampled_masks.append(selected_attention_mask)
                     sampled_labels.append(selected_labels)
 
         # Concatenate all collected data outside the loop
