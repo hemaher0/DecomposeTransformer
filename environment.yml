@@ -317,4 +317,3 @@ dependencies:
       - datasets==2.21.0
       - pyrootutils==1.0.4
       - python-dotenv==1.0.1
-prefix: /home/jieungkim/anaconda3/envs/DecomposeTransformer
