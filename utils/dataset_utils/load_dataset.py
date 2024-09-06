@@ -21,7 +21,7 @@ class CustomDataset(data_utils.Dataset):
         return {key: self.data[key][index] for key in self.data_config.return_fields}
 
 
-class EmbeddingDataset(data_utils.Dataset):
+class Embedding(data_utils.Dataset):
     def __init__(self, embeddings, labels=None, attention_mask=None):
         self.embeddings = embeddings
         self.labels = labels
@@ -156,6 +156,7 @@ def load_cached_dataset(data_config):
         valid_dataloader = torch.load(join(cached_dataset_path, "valid.pt"), weights_only=True)
         test_dataloader = torch.load(join(cached_dataset_path, "test.pt"), weights_only=True)
     color_print(f"The dataset {data_config.dataset_name} is loaded")
+    data_config.summary()
     return train_dataloader, valid_dataloader, test_dataloader
 
 
@@ -170,7 +171,6 @@ def load_data(dataset_name, batch_size=32, valid_size=0.1, num_workers=4, pin_me
         seed=seed,
         do_cache=do_cache,
     )
-    data_config.summary()
     return load_cached_dataset(data_config)
 
 

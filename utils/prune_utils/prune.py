@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from functools import partial
 from utils.dataset_utils.sampling import SamplingDataset
 from utils.helper import ModelConfig
+import gc
 
 
 class Methods:
@@ -192,12 +193,16 @@ def get_hook(method):
     return hook
 
 
-def propagate(model, dataloader, device, is_embeds=False, chunk_size=4):
+def propagate(model, dataloader, device, chunk_size=4):
     all_outputs = []
     chunk_outputs = []
 
     model = model.to(device)
+    model.eval()
+    
     for batch in dataloader:
+        is_embeds = "embeddings" in batch
+
         attn_mask = batch["attention_mask"].to(device)
         if not is_embeds:
             input_ids = batch["input_ids"].to(device)
@@ -220,6 +225,8 @@ def propagate(model, dataloader, device, is_embeds=False, chunk_size=4):
     if chunk_outputs:
         all_outputs.append(torch.cat(chunk_outputs))
     all_outputs = torch.cat(all_outputs).cpu().detach().numpy()
+    torch.cuda.empty_cache()
+    gc.collect()
     return all_outputs
 
 
@@ -271,7 +278,6 @@ def prune_concern_identification(
         sparsity_ratio: float = 0.6,
         include_layers: Optional[List[str]] = None,
         exclude_layers: Optional[List[str]] = None,
-        is_embeds: bool = False
 ) -> None:
     layers = find_layers(
         model, include_layers=include_layers, exclude_layers=exclude_layers
@@ -289,6 +295,14 @@ def prune_concern_identification(
 
     if len(dominant_batches) != len(non_dominant_batches):
         raise ValueError("Batch sizes of dominant_concern and non_dominant_concern does not match.")
+
+    dominant_is_embeds = "embeddings" in dominant_batches[0]
+    non_dominant_is_embeds = "embeddings" in non_dominant_batches[0]
+
+    if dominant_is_embeds != non_dominant_is_embeds:
+        raise ValueError("dominant_concern and non_dominant_concern must both contain either embeddings or input_ids.")
+
+    is_embeds = dominant_is_embeds
 
     combined_attn_mask = torch.cat([batch["attention_mask"] for batch in dominant_batches + non_dominant_batches])
     if not is_embeds:
