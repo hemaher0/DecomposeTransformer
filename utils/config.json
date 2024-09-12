@@ -2,6 +2,7 @@
   "model": {
     "OSDG": {
       "model_name": "sadickam/sdg-classification-bert",
+      "tokenizer_name": "sadickam/sdg-classification-bert",
       "task_type": "classification",
       "architectures": "bert",
       "dataset_name": "OSDG",
@@ -10,6 +11,7 @@
     },
     "YahooAnswersTopics": {
       "model_name": "fabriceyhc/bert-base-uncased-yahoo_answers_topics",
+      "tokenizer_name": "sadickam/sdg-classification-bert",
       "task_type": "classification",
       "architectures": "bert",
       "dataset_name": "YahooAnswersTopics",
@@ -18,14 +20,61 @@
     },
     "IMDB": {
       "model_name": "textattack/bert-base-uncased-imdb",
+      "tokenizer_name": "sadickam/sdg-classification-bert",
       "task_type": "classification",
       "architectures": "bert",
       "dataset_name": "IMDB",
       "num_labels": 2,
       "cache_dir": "Models"
     },
+    "bert-4-128-yahoo": {
+      "model_name": "Models/bert-4-128-yahoo",
+      "tokenizer_name": "sadickam/sdg-classification-bert",
+      "task_type": "classification",
+      "architectures": "bert",
+      "dataset_name": "YahooAnswersTopics",
+      "num_labels": 10,
+      "cache_dir": "Models"
+    },
+    "bert-6-128-yahoo": {
+      "model_name": "Models/bert-6-128-yahoo",
+      "tokenizer_name": "sadickam/sdg-classification-bert",
+      "task_type": "classification",
+      "architectures": "bert",
+      "dataset_name": "YahooAnswersTopics",
+      "num_labels": 10,
+      "cache_dir": "Models"
+    },
+    "bert-small-yahoo": {
+      "model_name": "Models/bert-small-yahoo",
+      "tokenizer_name": "sadickam/sdg-classification-bert",
+      "task_type": "classification",
+      "architectures": "bert",
+      "dataset_name": "YahooAnswersTopics",
+      "num_labels": 10,
+      "cache_dir": "Models"
+    },
+    "bert-tiny-yahoo": {
+      "model_name": "Models/bert-tiny-yahoo",
+      "tokenizer_name": "sadickam/sdg-classification-bert",
+      "task_type": "classification",
+      "architectures": "bert",
+      "dataset_name": "YahooAnswersTopics",
+      "num_labels": 10,
+      "cache_dir": "Models"
+    },
+    "bert-mini-yahoo": {
+      "model_name": "Models/bert-mini-yahoo",
+      "tokenizer_name": "sadickam/sdg-classification-bert",
+      "task_type": "classification",
+      "architectures": "bert",
+      "dataset_name": "YahooAnswersTopics",
+      "num_labels": 10,
+      "cache_dir": "Models"
+    },
     "code_search_net": {
       "model_name": "Salesforce/codet5-base-multi-sum",
+      "tokenizer_name": "sadickam/sdg-classification-bert",
       "task_type": "seq2seq",
       "architectures": "T5",
       "dataset_name": "Go",
@@ -49,7 +98,7 @@
       "config_name": "yahoo_answers_topics",
       "text_column": "question_title",
       "label_column": "topic",
-      "cache_dir": "Datasets/Yahoo",
+      "cache_dir": "Datasets/YahooAnswersTopics",
       "task_type": "classification"
     },
     "IMDB": {

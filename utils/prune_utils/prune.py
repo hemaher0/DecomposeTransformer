@@ -27,9 +27,7 @@ class Methods:
         X = X.t()  # (input_dim, batch_size * seq_dim)
         scaler_row = torch.norm(X, p=2, dim=1) ** 2 / nsamples
 
-        W_metric = torch.abs(current_weight) * torch.sqrt(
-            scaler_row.reshape((1, -1))
-        )
+        W_metric = torch.abs(current_weight) * torch.sqrt(scaler_row.reshape((1, -1)))
         W_mask = torch.zeros_like(W_metric) == 1
         sort_res = torch.sort(W_metric, dim=-1, stable=True)
         indices = sort_res[1][:, : int(W_metric.shape[1] * self.ratio)]
@@ -52,7 +50,6 @@ class Methods:
         )
 
         concern_norm = calc_norm(concern_inputs, dim=0).reshape((1, -1))
-        all_norm = calc_norm(X, dim=0).reshape((1, -1))
         non_concern_norm = calc_norm(non_concern_inputs, dim=0).reshape((1, -1))
 
         cosine_similarity = F.cosine_similarity(
@@ -61,11 +58,12 @@ class Methods:
             dim=0,
         ).reshape(1, -1)
 
-        sine_similarity = torch.sqrt(1 - cosine_similarity ** 2)
-        euclidean_distance = torch.sqrt(concern_norm ** 2 + non_concern_norm ** 2)
-        coefficient = concern_norm + sine_similarity * torch.abs(
-            concern_norm + non_concern_norm
-        ) / euclidean_distance
+        sine_similarity = torch.sqrt(1 - cosine_similarity**2)
+        distance = torch.sqrt(concern_norm**2 + non_concern_norm**2)
+        coefficient = (
+            concern_norm
+            + sine_similarity * torch.abs(concern_norm + non_concern_norm) / distance
+        )
 
         importance_score = torch.abs(current_weight) * torch.abs(coefficient)
 
@@ -101,12 +99,19 @@ class Methods:
             dim=0,
         ).reshape(1, -1)
 
-        sine_similarity = torch.sign(cosine_similarity) * torch.sqrt(1 - cosine_similarity ** 2)
-        euclidean_distance = torch.sqrt(concern_norm ** 2 + non_concern_norm ** 2)
-        coefficient = concern_norm + sine_similarity * torch.abs(
-            concern_norm + non_concern_norm
-        ) / euclidean_distance
-        importance_score = torch.abs(current_weight - original_weight) * torch.abs(coefficient)
+        sine_similarity = torch.sign(cosine_similarity) * torch.sqrt(
+            1 - cosine_similarity**2
+        )
+        euclidean_distance = torch.sqrt(concern_norm**2 + non_concern_norm**2)
+        coefficient = (
+            concern_norm
+            + sine_similarity
+            * torch.abs(concern_norm + non_concern_norm)
+            / euclidean_distance
+        )
+        importance_score = torch.abs(current_weight - original_weight) * torch.abs(
+            coefficient
+        )
 
         W_mask = torch.zeros_like(importance_score) == 1
         sort_res = torch.sort(importance_score, dim=-1, descending=True, stable=True)
@@ -151,11 +156,11 @@ class Methods:
 
 
 def find_layers(
-        model: Module,
-        layer_types: Optional[List[Type[Module]]] = None,
-        include_layers: Optional[List[str]] = None,
-        exclude_layers: Optional[List[str]] = None,
-        prefix: str = "",
+    model: Module,
+    layer_types: Optional[List[Type[Module]]] = None,
+    include_layers: Optional[List[str]] = None,
+    exclude_layers: Optional[List[str]] = None,
+    prefix: str = "",
 ) -> Dict[str, Module]:
     if layer_types is None:
         layer_types = [nn.Linear]
@@ -171,7 +176,7 @@ def find_layers(
             if any(exclude in layer_name for exclude in exclude_layers):
                 continue
             if include_layers and not any(
-                    include in layer_name for include in include_layers
+                include in layer_name for include in include_layers
             ):
                 if not any(isinstance(layer, t) for t in layer_types):
                     recursive_find(layer, layer_name)
@@ -199,7 +204,7 @@ def propagate(model, dataloader, device, chunk_size=4):
 
     model = model.to(device)
     model.eval()
-    
+
     for batch in dataloader:
         is_embeds = "embeddings" in batch
 
@@ -216,7 +221,9 @@ def propagate(model, dataloader, device, chunk_size=4):
                 )
             else:
                 output = model(
-                    inputs_embeds=inputs_embeds, attention_mask=attn_mask, output_hidden_states=True
+                    inputs_embeds=inputs_embeds,
+                    attention_mask=attn_mask,
+                    output_hidden_states=True,
                 )
             chunk_outputs.append(output.hidden_states[-1])
             if len(chunk_outputs) == chunk_size:
@@ -231,10 +238,10 @@ def propagate(model, dataloader, device, chunk_size=4):
 
 
 def prune_magnitude(
-        model: Module,
-        sparsity_ratio: float = 0.6,
-        include_layers: Optional[List[str]] = None,
-        exclude_layers: Optional[List[str]] = None,
+    model: Module,
+    sparsity_ratio: float = 0.6,
+    include_layers: Optional[List[str]] = None,
+    exclude_layers: Optional[List[str]] = None,
 ) -> None:
     layers = find_layers(
         model, include_layers=include_layers, exclude_layers=exclude_layers
@@ -249,10 +256,10 @@ def prune_magnitude(
 
 
 def prune_norm_distribution(
-        model: Module,
-        sparsity_ratio: float = 0.4,
-        include_layers: Optional[List[str]] = None,
-        exclude_layers: Optional[List[str]] = None,
+    model: Module,
+    sparsity_ratio: float = 0.4,
+    include_layers: Optional[List[str]] = None,
+    exclude_layers: Optional[List[str]] = None,
 ) -> None:
     layers = find_layers(
         model, include_layers=include_layers, exclude_layers=exclude_layers
@@ -271,13 +278,13 @@ def prune_norm_distribution(
 
 
 def prune_concern_identification(
-        model: Module,
-        model_config: ModelConfig,
-        dominant_concern: SamplingDataset,
-        non_dominant_concern: SamplingDataset,
-        sparsity_ratio: float = 0.6,
-        include_layers: Optional[List[str]] = None,
-        exclude_layers: Optional[List[str]] = None,
+    model: Module,
+    model_config: ModelConfig,
+    dominant_concern: SamplingDataset,
+    non_dominant_concern: SamplingDataset,
+    sparsity_ratio: float = 0.6,
+    include_layers: Optional[List[str]] = None,
+    exclude_layers: Optional[List[str]] = None,
 ) -> None:
     layers = find_layers(
         model, include_layers=include_layers, exclude_layers=exclude_layers
@@ -294,23 +301,37 @@ def prune_concern_identification(
     non_dominant_batches = list(non_dominant_concern)
 
     if len(dominant_batches) != len(non_dominant_batches):
-        raise ValueError("Batch sizes of dominant_concern and non_dominant_concern does not match.")
+        raise ValueError(
+            "Batch sizes of dominant_concern and non_dominant_concern does not match."
+        )
 
     dominant_is_embeds = "embeddings" in dominant_batches[0]
     non_dominant_is_embeds = "embeddings" in non_dominant_batches[0]
 
     if dominant_is_embeds != non_dominant_is_embeds:
-        raise ValueError("dominant_concern and non_dominant_concern must both contain either embeddings or input_ids.")
+        raise ValueError(
+            "dominant_concern and non_dominant_concern must both contain either embeddings or input_ids."
+        )
 
     is_embeds = dominant_is_embeds
 
-    combined_attn_mask = torch.cat([batch["attention_mask"] for batch in dominant_batches + non_dominant_batches])
+    combined_attn_mask = torch.cat(
+        [batch["attention_mask"] for batch in dominant_batches + non_dominant_batches]
+    )
     if not is_embeds:
-        combined_input_ids = torch.cat([batch["input_ids"] for batch in dominant_batches + non_dominant_batches])
-        combined_dataloader = [{"input_ids": combined_input_ids, "attention_mask": combined_attn_mask}]
+        combined_input_ids = torch.cat(
+            [batch["input_ids"] for batch in dominant_batches + non_dominant_batches]
+        )
+        combined_dataloader = [
+            {"input_ids": combined_input_ids, "attention_mask": combined_attn_mask}
+        ]
     else:
-        combined_embeddings = torch.cat([batch["embeddings"] for batch in dominant_batches + non_dominant_batches])
-        combined_dataloader = [{"embeddings": combined_embeddings, "attention_mask": combined_attn_mask}]
+        combined_embeddings = torch.cat(
+            [batch["embeddings"] for batch in dominant_batches + non_dominant_batches]
+        )
+        combined_dataloader = [
+            {"embeddings": combined_embeddings, "attention_mask": combined_attn_mask}
+        ]
 
     propagate(model, combined_dataloader, device, is_embeds)
 
@@ -319,14 +340,14 @@ def prune_concern_identification(
 
 
 def recover_tangling_identification(
-        model: Module,
-        module: Module,
-        model_config: ModelConfig,
-        dominant_concern: SamplingDataset,
-        non_dominant_concern: SamplingDataset,
-        recovery_ratio: float = 0.1,
-        include_layers: Optional[List[str]] = None,
-        exclude_layers: Optional[List[str]] = None,
+    model: Module,
+    module: Module,
+    model_config: ModelConfig,
+    dominant_concern: SamplingDataset,
+    non_dominant_concern: SamplingDataset,
+    recovery_ratio: float = 0.1,
+    include_layers: Optional[List[str]] = None,
+    exclude_layers: Optional[List[str]] = None,
 ):
     ref_layers = find_layers(
         model, include_layers=include_layers, exclude_layers=exclude_layers
@@ -340,7 +361,7 @@ def recover_tangling_identification(
 
     method = Methods(recovery_ratio)
     for (ref_name, ref_layer), (target_name, target_layer) in zip(
-            ref_layers.items(), target_layers.items()
+        ref_layers.items(), target_layers.items()
     ):
         handle = target_layer.register_forward_hook(
             lambda module, input, output: method.ti(module, input, output, ref_layer)
@@ -353,10 +374,16 @@ def recover_tangling_identification(
     if len(dominant_batches) != len(non_dominant_batches):
         raise ValueError("Batch sizes of dominant_concern does not match.")
 
-    combined_input_ids = torch.cat([batch["input_ids"] for batch in dominant_batches + non_dominant_batches])
-    combined_attn_mask = torch.cat([batch["attention_mask"] for batch in dominant_batches + non_dominant_batches])
+    combined_input_ids = torch.cat(
+        [batch["input_ids"] for batch in dominant_batches + non_dominant_batches]
+    )
+    combined_attn_mask = torch.cat(
+        [batch["attention_mask"] for batch in dominant_batches + non_dominant_batches]
+    )
 
-    combined_dataloader = [{"input_ids": combined_input_ids, "attention_mask": combined_attn_mask}]
+    combined_dataloader = [
+        {"input_ids": combined_input_ids, "attention_mask": combined_attn_mask}
+    ]
 
     propagate(module, combined_dataloader, device)
 
@@ -365,12 +392,12 @@ def recover_tangling_identification(
 
 
 def prune_wanda(
-        model: Module,
-        model_config: ModelConfig,
-        dataloader: SamplingDataset,
-        sparsity_ratio: float = 0.4,
-        include_layers: Optional[List[str]] = None,
-        exclude_layers: Optional[List[str]] = None,
+    model: Module,
+    model_config: ModelConfig,
+    dataloader: SamplingDataset,
+    sparsity_ratio: float = 0.4,
+    include_layers: Optional[List[str]] = None,
+    exclude_layers: Optional[List[str]] = None,
 ):
     layers = find_layers(
         model, include_layers=include_layers, exclude_layers=exclude_layers

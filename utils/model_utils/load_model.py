@@ -20,7 +20,7 @@ def load_model(model_config, checkpoint=None):
     else:
         model = AutoModelForSeq2SeqLM.from_pretrained(model_config.model_name, cache_dir=cache_dir)
 
-    tokenizer = AutoTokenizer.from_pretrained(model_config.model_name, cache_dir=cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained(model_config.tokenizer_name, cache_dir=cache_dir)
 
     # load check point
     if checkpoint is not None:

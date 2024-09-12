@@ -42,13 +42,19 @@ def evaluate_model(
 
         if not is_embeds:
             input_ids = batch["input_ids"].to(model_config.device)
+            batch_size = input_ids.size(0)
         else:
             embeddings = batch["embeddings"].to(model_config.device)
+            batch_size = embeddings.size(0)
 
         attention_mask = batch["attention_mask"].to(model_config.device)
-        labels = batch["labels"].to(model_config.device)
-
-        batch_size = labels.size(0)
+        labels = batch["labels"]
+        
+        if isinstance(labels, int):
+            labels = torch.tensor([labels]).to(model_config.device)
+        else:
+            labels = labels.to(model_config.device)
+        
         total_samples += batch_size
 
         with torch.no_grad():

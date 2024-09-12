@@ -108,7 +108,7 @@ def main():
 
     result = evaluate_model(module, model_config, test_dataloader)
     similar(model, module, valid_dataloader, args.concern, args.num_samples, num_labels, device=device, seed=args.seed)
-    # save_module(module, "Modules/", f"wanda_{args.name}_{args.wanda_ratio}p.pt")
+    # save_module(module, "Modules/", f"wanda_{args.name}_{args.wanda_ratio}p")
     torch.cuda.empty_cache()
 
 

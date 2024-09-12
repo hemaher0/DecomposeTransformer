@@ -46,6 +46,7 @@ class ModelConfig:
 
         self.config: Dict[str, Any] = ModelConfig.load_config(model_name)
         self.model_name: str = self.config["model_name"]
+        self.tokenizer_name: str = self.config["tokenizer_name"]
         self.task_type: str = self.config["task_type"]
         self.architectures: List[str] = self.config["architectures"]
         self.dataset_name: str = self.config["dataset_name"]
@@ -109,9 +110,9 @@ class DataConfig:
         self.do_cache: bool = do_cache
 
     def is_cached(self) -> bool:
-        train = join(self.cache_dir, "train.pt")
-        valid = join(self.cache_dir, "valid.pt")
-        test = join(self.cache_dir, "test.pt")
+        train = join(self.cache_dir, "train.pkl")
+        valid = join(self.cache_dir, "valid.pkl")
+        test = join(self.cache_dir, "test.pkl")
         return exists(train) and exists(valid) and exists(test)
 
     @staticmethod

@@ -1,12 +1,16 @@
-from os.path import join
+import os.path as path
 import torch
 import random
 import numpy as np
+import pickle
 import torch.utils.data as data_utils
 from datasets import load_dataset
 from utils.helper import DataConfig, ModelConfig, color_print, Paths
 from transformers import AutoTokenizer
 from tqdm.auto import tqdm
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 
 
 class CustomDataset(data_utils.Dataset):
@@ -22,7 +26,7 @@ class CustomDataset(data_utils.Dataset):
 
 
 class Embedding(data_utils.Dataset):
-    def __init__(self, embeddings, labels=None, attention_mask=None):
+    def __init__(self, embeddings, attention_mask=None, labels=None):
         self.embeddings = embeddings
         self.labels = labels
         self.attention_mask = attention_mask
@@ -99,19 +103,19 @@ def load_dataloader(dataset, tokenizer, data_config, shuffle=False, is_valid=Fal
 def load_cached_dataset(data_config):
     model_config = ModelConfig(data_config.dataset_name, data_config.device)
 
-    torch.manual_seed(data_config.seed)
-    np.random.seed(data_config.seed)
-    random.seed(data_config.seed)
-
     tokenizer = AutoTokenizer.from_pretrained(model_config.model_name, cache_dir=model_config.cache_dir)
     cached_dataset_path = data_config.cache_dir
-
+    
     if (
             not data_config.is_cached() or not data_config.do_cache
     ):  # If not cached, generate caches
         color_print(f"Downloading the Dataset {data_config.dataset_name}")
         dataset = load_dataset(**data_config.dataset_args)
 
+        torch.manual_seed(data_config.seed)
+        np.random.seed(data_config.seed)
+        random.seed(data_config.seed)
+    
         train_dataset = dataset["train"]
         test_dataset = dataset["test"]
 
@@ -144,17 +148,18 @@ def load_cached_dataset(data_config):
             )
 
         test_dataloader = load_dataloader(test_dataset, tokenizer, data_config)
+        
         if data_config.do_cache:
             Paths.get_dir(cached_dataset_path)
-            torch.save(train_dataloader, join(cached_dataset_path, "train.pt"))
-            torch.save(valid_dataloader, join(cached_dataset_path, "valid.pt"))
-            torch.save(test_dataloader, join(cached_dataset_path, "test.pt"))
+            save_cache(train_dataloader, cached_dataset_path, "train.pkl")
+            save_cache(valid_dataloader, cached_dataset_path, "valid.pkl")
+            save_cache(test_dataloader, cached_dataset_path, "test.pkl")
             color_print("Caching is completed.")
     else:
         color_print(f"Loading cached dataset {data_config.dataset_name}.")
-        train_dataloader = torch.load(join(cached_dataset_path, "train.pt"), weights_only=True)
-        valid_dataloader = torch.load(join(cached_dataset_path, "valid.pt"), weights_only=True)
-        test_dataloader = torch.load(join(cached_dataset_path, "test.pt"), weights_only=True)
+        train_dataloader = load_from_cache(cached_dataset_path, "train.pkl")
+        valid_dataloader = load_from_cache(cached_dataset_path, "valid.pkl")
+        test_dataloader = load_from_cache(cached_dataset_path, "test.pkl")
     color_print(f"The dataset {data_config.dataset_name} is loaded")
     data_config.summary()
     return train_dataloader, valid_dataloader, test_dataloader
@@ -173,6 +178,20 @@ def load_data(dataset_name, batch_size=32, valid_size=0.1, num_workers=4, pin_me
     )
     return load_cached_dataset(data_config)
 
+def save_cache(data, cache_dir, filename):
+    with open(path.join(cache_dir, filename), "wb") as f:
+        pickle.dump(data, f)
+    print(f"{filename} is cached.")
+
+def load_from_cache(cache_dir, filename):
+    cache_path = path.join(cache_dir, filename)
+    if path.exists(cache_path):
+        with open(cache_path, "rb") as f:
+            data = pickle.load(f)
+        print(f"{filename} is loaded from cache.")
+        return data
+    else:
+        raise FileNotFoundError(f"{filename} not found in {cache_dir}")
 
 # def convert_dataset_labels_to_binary(dataloader, target_class, is_stratified=False):
 #     input_ids, attention_mask, labels = [], [], []
