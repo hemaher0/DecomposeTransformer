@@ -74,6 +74,23 @@ def extract_top_n_embeddings(extract_num, num_labels, embeds_list, mask_list):
         return_list2.append(extracted_mask)
     return return_list1, return_list2
 
+def extract_bottom_n_embeddings(extract_num, num_labels, embeds_list, mask_list):
+    return_list1 = []
+    return_list2 = []
+    for i in range(extract_num):
+        extracted_embeds = []
+        extracted_mask = []
+        for j in range(num_labels):
+            class_embeds = np.array(embeds_list[j][-(i+1):-i] or embeds_list[j][-(i+1):])
+            class_embeds_tensor = torch.tensor(class_embeds)
+            class_mask = np.array(mask_list[j][-(i+1):-i] or mask_list[j][-(i+1):])
+            class_mask_tensor = torch.tensor(class_mask)
+            extracted_embeds.append(class_embeds_tensor)
+            extracted_mask.append(class_mask_tensor)
+        return_list1.append(extracted_embeds)
+        return_list2.append(extracted_mask)
+    return return_list1, return_list2
+
 def get_decimal_precision(value):
     str_value = str(value)
     if "." in str_value:
@@ -88,7 +105,7 @@ def perturb(embeds, eps, grad):
 def calculate_gradient(model, input_embeds, attention_mask, target_class, device):
     input_embeds = input_embeds.clone().detach().requires_grad_(True).to(device)
     target = torch.tensor([target_class]).to(device)
-    outputs = model(inputs_embeds=input_embeds, labels=target)
+    outputs = model(inputs_embeds=input_embeds, attention_mask=attention_mask, labels=target)
     init_pred = outputs.logits.argmax(dim=-1)
     loss = outputs.loss
     model.zero_grad()
@@ -250,6 +267,7 @@ def make_example(
     data_loader,
     example_num,
     top_emb,
+    bottom_emb,
     true_ratio,
     step_eps=0.01,
     max_eps=10.0,
@@ -272,7 +290,7 @@ def make_example(
 
     positive_num = int(round(example_num * true_ratio))
     negative_num = example_num - positive_num
-    extract_num = top_emb
+    extract_num = top_emb + bottom_emb
 
     per_emb_positive_example_num = int(round(positive_num / extract_num))
     per_emb_negative_example_num = int(round(negative_num / extract_num))
@@ -283,6 +301,11 @@ def make_example(
     )
     extract_embed_list.extend(extracted_top_embed)
     extract_mask_list.extend(extracted_top_mask)
+    extracted_bottom_embed, extracted_bottom_mask = extract_bottom_n_embeddings(
+        bottom_emb, class_num, input_embeds, attention_mask
+    )
+    extract_embed_list.extend(extracted_bottom_embed)
+    extract_mask_list.extend(extracted_bottom_mask)
     for i in range(len(extract_embed_list)):
         targeted_eps, first_changed_eps = calculate_all_epsilon(
             model,
