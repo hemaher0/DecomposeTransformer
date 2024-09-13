@@ -47,7 +47,7 @@ def main():
         "--wanda_ratio",
         type=float,
         default=0.3,
-        help="Sparsity ratio for CI"
+        help="Sparsity ratio for wanda"
     )
     parser.add_argument(
         "--seed",
@@ -120,7 +120,7 @@ def main():
     similar(model, module, valid_dataloader, concern, num_samples, num_labels, device=device, seed=seed)
     print(get_sparsity(module)[0])
     
-    # save_module(module, "Modules/", f"ci_{name}_{ci_ratio}p_class{concern}")
+    # save_module(module, "Modules/", f"wanda_{name}_{wanda_ratio}p")
     torch.cuda.empty_cache()
 
 

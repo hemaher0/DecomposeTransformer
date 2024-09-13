@@ -16,10 +16,7 @@ from utils.model_utils.save_module import save_module
 from utils.model_utils.load_model import load_model
 from utils.model_utils.evaluate import evaluate_model, get_sparsity, similar
 from utils.dataset_utils.sampling import SamplingDataset
-from utils.prune_utils.prune_head import (
-    head_importance_prunning
-)
-from utils.prune_utils.prune import prune_concern_identification
+from utils.prune_utils.prune import prune_magnitude
 
 
 def main():
@@ -47,10 +44,10 @@ def main():
         "--concern", type=int, default=0, help="Target Concern for decompose"
     )
     parser.add_argument(
-        "--ci_ratio",
+        "--magnitude_ratio",
         type=float,
         default=0.3,
-        help="Sparsity ratio for CI"
+        help="Sparsity ratio for magnitude pruning"
     )
     parser.add_argument(
         "--seed",
@@ -81,7 +78,7 @@ def main():
     batch_size = args.batch_size
     num_workers = args.num_workers
     num_samples = args.num_samples
-    ci_ratio = args.ci_ratio
+    magnitude_ratio = args.magnitude_ratio
     seed = args.seed
     include_layers = args.include_layers
     exclude_layers = args.exclude_layers
@@ -103,31 +100,24 @@ def main():
     concern = args.concern
     color_print("#Module " + str(concern) + " in progress....")
 
-    positive_samples = SamplingDataset(
-        train_dataloader, concern, num_samples, num_labels, True, 4, device=device, resample=False, seed=seed
-    )
-    negative_samples = SamplingDataset(
-        train_dataloader, concern, num_samples, num_labels, False, 4, device=device, resample=False, seed=seed
+    all_samples = SamplingDataset(
+        train_dataloader, 200, num_samples, num_labels, False, 4, device=device, resample=False, seed=seed
     )
 
     module = copy.deepcopy(model)
 
-    prune_concern_identification(
+    prune_magnitude(
         module,
-        model_config,
-        positive_samples,
-        negative_samples,
+        sparsity_ratio=magnitude_ratio,
         include_layers=include_layers,
-        exclude_layers=exclude_layers,
-        sparsity_ratio=ci_ratio,
+        exclude_layers=exclude_layers
     )
-
     color_print(f"Evaluate the pruned model {concern}")
     result = evaluate_model(module, model_config, test_dataloader)
     similar(model, module, valid_dataloader, concern, num_samples, num_labels, device=device, seed=seed)
     print(get_sparsity(module)[0])
     
-    # save_module(module, "Modules/", f"ci_{name}_{ci_ratio}p_class{concern}")
+    # save_module(module, "Modules/", f"magnitude_{name}_{magnitude_ratio}p")
     torch.cuda.empty_cache()
 
 

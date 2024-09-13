@@ -3,10 +3,12 @@ import sys
 
 sys.path.append("../")
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 import argparse
 import copy
 import torch
 from datetime import datetime
+from torch.utils.data import DataLoader
 from utils.helper import ModelConfig, color_print
 from utils.dataset_utils.load_dataset import (
     load_data,
@@ -14,15 +16,17 @@ from utils.dataset_utils.load_dataset import (
 from utils.model_utils.save_module import save_module
 from utils.model_utils.load_model import load_model
 from utils.model_utils.evaluate import evaluate_model, get_sparsity, similar
+from utils.dataset_utils.perturb import make_example
 from utils.dataset_utils.sampling import SamplingDataset
-from utils.prune_utils.prune import (
-    prune_wanda
+from utils.prune_utils.prune_head import (
+    head_importance_prunning
 )
+from utils.prune_utils.prune import prune_concern_identification
 
 
 def main():
     parser = argparse.ArgumentParser(description="Model Pruning and Evaluation")
-    parser.add_argument("--name", type=str, default="OSDG", help="Name of the dataset")
+    parser.add_argument("--name", type=str, default="Yahoo", help="Name of the dataset")
     parser.add_argument(
         "--device", type=str, default="cuda:0", help="Device to use for computation"
     )
@@ -30,39 +34,31 @@ def main():
         "--checkpoint", type=str, default=None, help="Checkpoint to load model from"
     )
     parser.add_argument(
-        "--batch_size", type=int, default=32, help="Batch size for data loaders"
+        "--batch_size", type=int, default=16, help="Batch size for data loaders"
     )
     parser.add_argument(
-        "--num_workers", type=int, default=16, help="Number of workers for data loaders"
+        "--num_workers", type=int, default=4, help="Number of workers for data loaders"
     )
     parser.add_argument(
         "--num_samples",
         type=int,
-        default=64,
+        default=128,
         help="Number of samples for sampling dataset",
     )
     parser.add_argument(
         "--concern", type=int, default=0, help="Target Concern for decompose"
     )
     parser.add_argument(
-        "--wanda_ratio",
+        "--head_pruning_ratio",
         type=float,
-        default=0.6,
-        help="Sparsity ratio for concern identification pruning",
+        default=0.3,
+        help="Sparsity ratio for Head pruning",
     )
     parser.add_argument(
-        "--include_layers",
-        type=str,
-        nargs="+",
-        default=["attention", "intermediate", "output"],
-        help="Layers to include for pruning",
-    )
-    parser.add_argument(
-        "--exclude_layers",
-        type=str,
-        nargs="+",
-        default=None,
-        help="Layers to exclude for pruning",
+        "--ci_ratio",
+        type=float,
+        default=0.3,
+        help="Sparsity ratio for CI"
     )
     parser.add_argument(
         "--seed",
@@ -70,45 +66,96 @@ def main():
         default=44,
         help="Random seed for reproducibility",
     )
-
-    parser.add_argument("--log_dir", type=str, help="Path to the log file.", default="")
-
+    parser.add_argument(
+        "--include_layers",
+        type=str,
+        nargs="+",
+        default=["intermediate", "output"],
+        help="Layers to include for pruning",
+    )
+    parser.add_argument(
+        "--exclude_layers",
+        type=str,
+        nargs="+",
+        default=["attention"],
+        help="Layers to exclude for pruning",
+    )
+    
     args = parser.parse_args()
 
-    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-
-    model_config = ModelConfig(args.name, device)
-    num_labels = model_config.config["num_labels"]
-
-    if args.log_dir:
-        sys.stdout = open(f"Logs/{args.log_dir}", "a")
-        sys.stderr = open(f"Logs/{args.log_dir}", "a")
-
+    name = args.name
+    device = torch.device(args.device)
+    checkpoint = args.checkpoint
+    batch_size = args.batch_size
+    num_workers = args.num_workers
+    num_samples = args.num_samples
+    head_pruning_ratio = args.head_pruning_ratio
+    ci_ratio = args.ci_ratio
+    seed = args.seed
+    include_layers = args.include_layers
+    exclude_layers = args.exclude_layers
+    
     color_print("Start Time:" + datetime.now().strftime("%H:%M:%S"))
+    
+    model_config = ModelConfig(name, device)
+    num_labels = model_config.num_labels
+    
     model, tokenizer, checkpoint = load_model(model_config)
 
     train_dataloader, valid_dataloader, test_dataloader = load_data(
-        args.name, batch_size=args.batch_size, num_workers=args.num_workers, do_cache=True
+        model_config.dataset_name, batch_size=batch_size, num_workers=num_workers, do_cache=True, seed=seed
     )
 
-    color_print("#Wanda in progress....")
+    color_print("Evaluate the original model")
+    result = evaluate_model(model, model_config, test_dataloader)
 
-    all_samples = SamplingDataset(
-        train_dataloader, 200, args.num_samples, num_labels, False, 4, device=device, resample=False, seed=args.seed
+    concern = args.concern
+    color_print("#Module " + str(concern) + " in progress....")
+
+    positive_embeddings, negative_embeddings= make_example(
+        model,
+        model_config,
+        data_loader=train_dataloader,
+        example_num=3000,
+        top_emb=1,
+        bottom_emb=0,
+        true_ratio=0.5,
+        step_eps=0.01,
+        max_eps=10.0
     )
+    
+    pos_dataloader = DataLoader(positive_embeddings, batch_size=batch_size, shuffle=True, num_workers=0)
+    neg_dataloader = DataLoader(negative_embeddings, batch_size=batch_size, shuffle=True, num_workers=0)
 
-    # print("Evaluate the original model")
-    # evaluate_model(model, model_config, test_dataloader)
-
+    positive_samples = SamplingDataset(
+        pos_dataloader, concern, num_samples, num_labels, True, 4, device=device, resample=False, seed=seed
+    )
+    negative_samples = SamplingDataset(
+        neg_dataloader, concern, num_samples, num_labels, False, 4, device=device, resample=False, seed=seed
+    )
+    
     module = copy.deepcopy(model)
-    prune_wanda(model, model_config, all_samples, sparsity_ratio=args.wanda_ratio, include_layers=args.include_layers,
-                exclude_layers=args.exclude_layers)
 
-    print(get_sparsity(module)[0])
+    head_importance_prunning(
+        module, model_config, positive_samples, head_pruning_ratio
+    )
 
+    prune_concern_identification(
+        module,
+        model_config,
+        positive_samples,
+        negative_samples,
+        include_layers=include_layers,
+        exclude_layers=exclude_layers,
+        sparsity_ratio=ci_ratio,
+    )
+
+    color_print(f"Evaluate the pruned model {concern}")
     result = evaluate_model(module, model_config, test_dataloader)
-    similar(model, module, valid_dataloader, args.concern, args.num_samples, num_labels, device=device, seed=args.seed)
-    # save_module(module, "Modules/", f"wanda_{args.name}_{args.wanda_ratio}p")
+    similar(model, module, valid_dataloader, concern, num_samples, num_labels, device=device, seed=seed)
+    print(get_sparsity(module)[0])
+    
+    # save_module(module, "Modules/", f"generated_{name}_{head_pruning_ratio}p_{ci_ratio}p_class{concern}")
     torch.cuda.empty_cache()
 
 
