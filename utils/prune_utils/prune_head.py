@@ -218,11 +218,11 @@ def head_importance_prunning(
     num_hidden_layers = model.config.num_hidden_layers
     total_heads_to_prune = int(num_attention_heads * num_hidden_layers * sparsity_ratio)
     
-    if total_heads_to_prune % 4 != 0:
+    if total_heads_to_prune >= 4 and total_heads_to_prune % 4 != 0:
         total_heads_to_prune -= 4 - (total_heads_to_prune % 4)
-    num_steps = total_heads_to_prune // 4
-    if num_steps == 0:
-        num_steps = 1
+        
+    num_steps = max(1, total_heads_to_prune // 4)
+    
     heads_per_step = int(total_heads_to_prune // num_steps)
     print(f"Total heads to prune: {total_heads_to_prune}")
 
@@ -240,7 +240,6 @@ def head_importance_prunning(
         prune_list = calculate_prune_head(head_importance_list, current_heads_to_prune, pruned_heads)
         pruned_heads.update(prune_list)
 
-        # print(f"Prune head list: {prune_list}")
         prune_head(model, prune_list)
     print(pruned_heads)
 
