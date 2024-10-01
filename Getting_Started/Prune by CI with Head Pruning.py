@@ -96,7 +96,7 @@ def main():
     model, tokenizer, checkpoint = load_model(model_config)
 
     train_dataloader, valid_dataloader, test_dataloader = load_data(
-        model_config.dataset_name,
+        model_config,
         batch_size=batch_size,
         num_workers=num_workers,
         do_cache=True,
