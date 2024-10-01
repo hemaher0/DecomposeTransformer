@@ -4,7 +4,7 @@ import math
 import numpy as np
 import random
 from tqdm.auto import tqdm
-from utils.dataset_utils.load_dataset import Embedding
+from utils.dataset_utils.dataset import CustomEmbeddingDataset
 
 
 def select_true_example(model, model_config, data_loader):
@@ -427,10 +427,10 @@ def make_example(
     negative_example_list = [tensor.squeeze(0) for tensor in negative_example_list]
     negative_mask_list = [tensor.squeeze(0) for tensor in negative_mask_list]
 
-    pos_embeddings = Embedding(
+    pos_embeddings = CustomEmbeddingDataset(
         positive_example_list, positive_mask_list, positive_example_label
     )
-    neg_embeddings = Embedding(
+    neg_embeddings = CustomEmbeddingDataset(
         negative_example_list, negative_mask_list, negative_example_label
     )
     return pos_embeddings, neg_embeddings
