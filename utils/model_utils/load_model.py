@@ -13,14 +13,18 @@ def load_model(model_config, checkpoint=None):
     color_print(f"Loading the model.")
     model_config.summary()
 
-    if model_config.task_type == "classification":
+    if model_config.task_type == "text_classification":
         model = AutoModelForSequenceClassification.from_pretrained(
             model_config.model_name, cache_dir=cache_dir
         )
     else:
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_config.model_name, cache_dir=cache_dir)
+        model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_config.model_name, cache_dir=cache_dir
+        )
 
-    tokenizer = AutoTokenizer.from_pretrained(model_config.tokenizer_name, cache_dir=cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_config.tokenizer_name, cache_dir=cache_dir
+    )
 
     # load check point
     if checkpoint is not None:

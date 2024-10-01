@@ -52,11 +52,13 @@ def positivedef_matrix_sqrt(array):
               sqrtarray: The matrix square root of array
     """
     w, v = np.linalg.eigh(
-        array)  # Return the eigenvalues and eigenvectors of a complex Hermitian (conjugate symmetric) or a real symmetric matrix.
+        array
+    )  # Return the eigenvalues and eigenvectors of a complex Hermitian (conjugate symmetric) or a real symmetric matrix.
     #  A - np.dot(v, np.dot(np.diag(w), v.T))
     wsqrt = np.sqrt(w)  # w is eigenvalues, v is eigenvectors
-    sqrtarray = np.dot(v,
-                       np.dot(np.diag(wsqrt), np.conj(v).T))  # np.conj(v) return the complex conjugate, element-wise.
+    sqrtarray = np.dot(
+        v, np.dot(np.diag(wsqrt), np.conj(v).T)
+    )  # np.conj(v) return the complex conjugate, element-wise.
     return sqrtarray
 
 
@@ -81,22 +83,24 @@ def remove_small(sigma_xx, sigma_xy, sigma_yx, sigma_yy, epsilon):
               y_idxs: indexes of sigma_yy that were removed
     """
 
-    x_diag = np.abs(np.diagonal(sigma_xx))  # np.diagonal get the diagonal value of the matrix
+    x_diag = np.abs(
+        np.diagonal(sigma_xx)
+    )  # np.diagonal get the diagonal value of the matrix
     y_diag = np.abs(np.diagonal(sigma_yy))
-    x_idxs = (x_diag >= epsilon)  # epsilon=0
-    y_idxs = (y_diag >= epsilon)
+    x_idxs = x_diag >= epsilon  # epsilon=0
+    y_idxs = y_diag >= epsilon
 
     sigma_xx_crop = sigma_xx[x_idxs][:, x_idxs]
     sigma_xy_crop = sigma_xy[x_idxs][:, y_idxs]
     sigma_yx_crop = sigma_yx[y_idxs][:, x_idxs]
     sigma_yy_crop = sigma_yy[y_idxs][:, y_idxs]
 
-    return (sigma_xx_crop, sigma_xy_crop, sigma_yx_crop, sigma_yy_crop,
-            x_idxs, y_idxs)
+    return (sigma_xx_crop, sigma_xy_crop, sigma_yx_crop, sigma_yy_crop, x_idxs, y_idxs)
 
 
-def compute_ccas(sigma_xx, sigma_xy, sigma_yx, sigma_yy, epsilon,
-                 verbose=True):  # epsilon = 0
+def compute_ccas(
+    sigma_xx, sigma_xy, sigma_yx, sigma_yy, epsilon, verbose=True
+):  # epsilon = 0
     """Main cca computation function, takes in variances and crossvariances.
 
     This function takes in the covariances and cross covariances of X, Y,
@@ -132,15 +136,22 @@ def compute_ccas(sigma_xx, sigma_xy, sigma_yx, sigma_yy, epsilon,
               y_idxs:       Same as above but for sigma_yy
     """
 
-    (sigma_xx, sigma_xy, sigma_yx, sigma_yy,
-     x_idxs, y_idxs) = remove_small(sigma_xx, sigma_xy, sigma_yx, sigma_yy, epsilon)
+    (sigma_xx, sigma_xy, sigma_yx, sigma_yy, x_idxs, y_idxs) = remove_small(
+        sigma_xx, sigma_xy, sigma_yx, sigma_yy, epsilon
+    )
 
     numx = sigma_xx.shape[0]  # 100
     numy = sigma_yy.shape[0]  # 50
 
     if numx == 0 or numy == 0:
-        return ([0, 0, 0], [0, 0, 0], np.zeros_like(sigma_xx),
-                np.zeros_like(sigma_yy), x_idxs, y_idxs)
+        return (
+            [0, 0, 0],
+            [0, 0, 0],
+            np.zeros_like(sigma_xx),
+            np.zeros_like(sigma_yy),
+            x_idxs,
+            y_idxs,
+        )
 
     if verbose:  # verbose = True
         print("adding eps to diagonal and taking inverse")
@@ -217,10 +228,15 @@ def create_zero_dict(compute_dirns, dimension):
     return return_dict
 
 
-def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
-                       compute_coefs=True,
-                       compute_dirns=False,
-                       verbose=True):
+def get_cca_similarity(
+    acts1,
+    acts2,
+    epsilon=0.0,
+    threshold=0.98,
+    compute_coefs=True,
+    compute_dirns=False,
+    verbose=True,
+):
     """The main function for computing cca similarities.
 
     This function computes the cca similarity between two sets of activations,
@@ -266,11 +282,13 @@ def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
     """
 
     # assert dimensionality equal
-    assert acts1.shape[1] == acts2.shape[
-        1], "dimensions don't match"  # acts1.shape[1] == acts2.shape[1]=1000, 1000 data points
+    assert (
+        acts1.shape[1] == acts2.shape[1]
+    ), "dimensions don't match"  # acts1.shape[1] == acts2.shape[1]=1000, 1000 data points
     # check that acts1, acts2 are transposition
-    assert acts1.shape[0] < acts1.shape[1], ("input must be number of neurons"
-                                             "by datapoints")
+    assert acts1.shape[0] < acts1.shape[1], (
+        "input must be number of neurons" "by datapoints"
+    )
     return_dict = {}
 
     # compute covariance with numpy function for extra stability
@@ -291,10 +309,9 @@ def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
     sigmaxy /= np.sqrt(xmax * ymax)
     sigmayx /= np.sqrt(xmax * ymax)
 
-    ([u, s, v], invsqrt_xx, invsqrt_yy, x_idxs, y_idxs) = compute_ccas(sigmaxx, sigmaxy, sigmayx,
-                                                                       sigmayy,
-                                                                       epsilon=epsilon,
-                                                                       verbose=verbose)
+    ([u, s, v], invsqrt_xx, invsqrt_yy, x_idxs, y_idxs) = compute_ccas(
+        sigmaxx, sigmaxy, sigmayx, sigmayy, epsilon=epsilon, verbose=verbose
+    )
 
     # if x_idxs or y_idxs is all false, return_dict has zero entries
     if (not np.any(x_idxs)) or (not np.any(y_idxs)):
@@ -302,26 +319,26 @@ def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
 
     if compute_coefs:
         # also compute full coefficients over all neurons  # x_idx = [True,...True] len(x_idx)=100,  y_idx = [True,...True] len(y_idx)=50
-        x_mask = np.dot(x_idxs.reshape((-1, 1)), x_idxs.reshape((1, -1)))  # x_mask: 100x100, all True
-        y_mask = np.dot(y_idxs.reshape((-1, 1)), y_idxs.reshape((1, -1)))  # y_mask: 50x50, all True
+        x_mask = np.dot(
+            x_idxs.reshape((-1, 1)), x_idxs.reshape((1, -1))
+        )  # x_mask: 100x100, all True
+        y_mask = np.dot(
+            y_idxs.reshape((-1, 1)), y_idxs.reshape((1, -1))
+        )  # y_mask: 50x50, all True
 
         return_dict["coef_x"] = u.T  # shape: [100, 100]
         return_dict["invsqrt_xx"] = invsqrt_xx
         return_dict["full_coef_x"] = np.zeros((numx, numx))
-        np.place(return_dict["full_coef_x"], x_mask,
-                 return_dict["coef_x"])
+        np.place(return_dict["full_coef_x"], x_mask, return_dict["coef_x"])
         return_dict["full_invsqrt_xx"] = np.zeros((numx, numx))
-        np.place(return_dict["full_invsqrt_xx"], x_mask,
-                 return_dict["invsqrt_xx"])
+        np.place(return_dict["full_invsqrt_xx"], x_mask, return_dict["invsqrt_xx"])
 
         return_dict["coef_y"] = v
         return_dict["invsqrt_yy"] = invsqrt_yy
         return_dict["full_coef_y"] = np.zeros((numy, numy))
-        np.place(return_dict["full_coef_y"], y_mask,
-                 return_dict["coef_y"])
+        np.place(return_dict["full_coef_y"], y_mask, return_dict["coef_y"])
         return_dict["full_invsqrt_yy"] = np.zeros((numy, numy))
-        np.place(return_dict["full_invsqrt_yy"], y_mask,
-                 return_dict["invsqrt_yy"])
+        np.place(return_dict["full_invsqrt_yy"], y_mask, return_dict["invsqrt_yy"])
 
         # compute means
         neuron_means1 = np.mean(acts1, axis=1, keepdims=True)
@@ -331,12 +348,20 @@ def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
 
     if compute_dirns:  # false here
         # orthonormal directions that are CCA directions
-        cca_dirns1 = np.dot(np.dot(return_dict["full_coef_x"],
-                                   return_dict["full_invsqrt_xx"]),
-                            (acts1 - neuron_means1)) + neuron_means1
-        cca_dirns2 = np.dot(np.dot(return_dict["full_coef_y"],
-                                   return_dict["full_invsqrt_yy"]),
-                            (acts2 - neuron_means2)) + neuron_means2
+        cca_dirns1 = (
+            np.dot(
+                np.dot(return_dict["full_coef_x"], return_dict["full_invsqrt_xx"]),
+                (acts1 - neuron_means1),
+            )
+            + neuron_means1
+        )
+        cca_dirns2 = (
+            np.dot(
+                np.dot(return_dict["full_coef_y"], return_dict["full_invsqrt_yy"]),
+                (acts2 - neuron_means2),
+            )
+            + neuron_means2
+        )
 
     # get rid of trailing zeros in the cca coefficients
     idx1 = sum_threshold(s, threshold)
@@ -357,8 +382,9 @@ def get_cca_similarity(acts1, acts2, epsilon=0., threshold=0.98,
     return return_dict
 
 
-def robust_cca_similarity(acts1, acts2, threshold=0.98, epsilon=1e-6,
-                          compute_dirns=True):
+def robust_cca_similarity(
+    acts1, acts2, threshold=0.98, epsilon=1e-6, compute_dirns=True
+):
     """Calls get_cca_similarity multiple times while adding noise.
 
     This function is very similar to get_cca_similarity, and can be used if

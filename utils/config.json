@@ -1,84 +1,63 @@
 {
   "model": {
     "OSDG": {
-      "model_name": "sadickam/sdg-classification-bert",
+      "model_name": {
+        "OSDG": "sadickam/sdg-classification-bert"
+      },
       "tokenizer_name": "sadickam/sdg-classification-bert",
-      "task_type": "classification",
+      "task_type": "text_classification",
       "architectures": "bert",
       "dataset_name": "OSDG",
       "num_labels": 16,
       "cache_dir": "Models"
     },
     "YahooAnswersTopics": {
-      "model_name": "fabriceyhc/bert-base-uncased-yahoo_answers_topics",
+      "model_name": {
+        "YahooAnswersTopics": "fabriceyhc/bert-base-uncased-yahoo_answers_topics",
+        "bert-4-128-yahoo": "Models/bert-4-128-yahoo",
+        "bert-6-128-yahoo": "Models/bert-6-128-yahoo",
+        "bert-small-yahoo": "Models/bert-small-yahoo",
+        "bert-tiny-yahoo": "Models/bert-tiny-yahoo",
+        "bert-mini-yahoo": "Models/bert-mini-yahoo"
+      },
       "tokenizer_name": "sadickam/sdg-classification-bert",
-      "task_type": "classification",
+      "task_type": "text_classification",
       "architectures": "bert",
       "dataset_name": "YahooAnswersTopics",
       "num_labels": 10,
       "cache_dir": "Models"
     },
     "IMDB": {
-      "model_name": "textattack/bert-base-uncased-imdb",
+      "model_name": {
+        "IMDB": "textattack/bert-base-uncased-imdb"
+      },
       "tokenizer_name": "sadickam/sdg-classification-bert",
-      "task_type": "classification",
+      "task_type": "text_classification",
       "architectures": "bert",
       "dataset_name": "IMDB",
       "num_labels": 2,
       "cache_dir": "Models"
     },
-    "bert-4-128-yahoo": {
-      "model_name": "Models/bert-4-128-yahoo",
-      "tokenizer_name": "sadickam/sdg-classification-bert",
-      "task_type": "classification",
-      "architectures": "bert",
-      "dataset_name": "YahooAnswersTopics",
-      "num_labels": 10,
-      "cache_dir": "Models"
-    },
-    "bert-6-128-yahoo": {
-      "model_name": "Models/bert-6-128-yahoo",
-      "tokenizer_name": "sadickam/sdg-classification-bert",
-      "task_type": "classification",
-      "architectures": "bert",
-      "dataset_name": "YahooAnswersTopics",
-      "num_labels": 10,
-      "cache_dir": "Models"
-    },
-    "bert-small-yahoo": {
-      "model_name": "Models/bert-small-yahoo",
-      "tokenizer_name": "sadickam/sdg-classification-bert",
-      "task_type": "classification",
-      "architectures": "bert",
-      "dataset_name": "YahooAnswersTopics",
-      "num_labels": 10,
-      "cache_dir": "Models"
-    },
-    "bert-tiny-yahoo": {
-      "model_name": "Models/bert-tiny-yahoo",
-      "tokenizer_name": "sadickam/sdg-classification-bert",
-      "task_type": "classification",
-      "architectures": "bert",
-      "dataset_name": "YahooAnswersTopics",
-      "num_labels": 10,
-      "cache_dir": "Models"
-    },
-    "bert-mini-yahoo": {
-      "model_name": "Models/bert-mini-yahoo",
-      "tokenizer_name": "sadickam/sdg-classification-bert",
-      "task_type": "classification",
-      "architectures": "bert",
-      "dataset_name": "YahooAnswersTopics",
-      "num_labels": 10,
-      "cache_dir": "Models"
-    },
     "code_search_net": {
-      "model_name": "Salesforce/codet5-base-multi-sum",
+      "model_name": {
+        "code_search_net": "Salesforce/codet5-base-multi-sum"
+      },
       "tokenizer_name": "sadickam/sdg-classification-bert",
-      "task_type": "seq2seq",
+      "task_type": "text_generation",
       "architectures": "T5",
       "dataset_name": "Go",
       "num_labels": 6,
+      "cache_dir": "Models"
+    },
+    "MNIST": {
+      "model_name": {
+        "MNIST": "Models/MNIST"
+      },
+      "tokenizer_name": "",
+      "task_type": "image_classification",
+      "architectures": "SimpleDNN",
+      "dataset_name": "MNIST",
+      "num_labels": 10,
       "cache_dir": "Models"
     }
   },
@@ -87,82 +66,111 @@
       "dataset_name": "OSDG",
       "path": "albertmartinez/OSDG",
       "config_name": "2024-01-01",
-      "text_column": "text",
-      "label_column": "labels",
+      "features": {
+        "first_column": "text",
+        "second_column": "labels"
+      },
       "cache_dir": "Datasets/OSDG",
-      "task_type": "classification"
+      "task_type": "text_classification"
     },
     "YahooAnswersTopics": {
       "dataset_name": "YahooAnswersTopics",
       "path": "yahoo_answers_topics",
       "config_name": "yahoo_answers_topics",
-      "text_column": "question_title",
-      "label_column": "topic",
+      "features": {
+        "first_column": "question_title",
+        "second_column": "topic"
+      },
       "cache_dir": "Datasets/YahooAnswersTopics",
-      "task_type": "classification"
+      "task_type": "text_classification"
     },
     "IMDB": {
       "dataset_name": "IMDB",
       "path": "imdb",
       "config_name": "plain_text",
-      "text_column": "text",
-      "label_column": "label",
+      "features": {
+        "first_column": "text",
+        "second_column": "label"
+      },
       "cache_dir": "Datasets/IMDB",
-      "task_type": "classification"
+      "task_type": "text_classification"
     },
     "Go": {
       "dataset_name": "Go",
       "path": "code_search_net",
       "config_name": "go",
-      "text_column": "func_code_string",
-      "label_column": "func_documentation_string",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      },
       "cache_dir": "Datasets/Go",
-      "task_type": "seq2seq"
+      "task_type": "text_generation"
     },
     "Java": {
       "dataset_name": "Java",
       "path": "code_search_net",
       "config_name": "java",
-      "text_column": "func_code_string",
-      "label_column": "func_documentation_string",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      },
       "cache_dir": "Datasets/Java",
-      "task_type": "seq2seq"
+      "task_type": "text_generation"
     },
     "Javascript": {
       "dataset_name": "Javascript",
       "path": "code_search_net",
       "config_name": "javascript",
-      "text_column": "func_code_string",
-      "label_column": "func_documentation_string",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      },
       "cache_dir": "Datasets/Javascript",
-      "task_type": "seq2seq"
+      "task_type": "text_generation"
     },
     "PHP": {
       "dataset_name": "PHP",
       "path": "code_search_net",
       "config_name": "php",
-      "text_column": "func_code_string",
-      "label_column": "func_documentation_string",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      },
       "cache_dir": "Datasets/PHP",
-      "task_type": "seq2seq"
+      "task_type": "text_generation"
     },
     "Python": {
       "dataset_name": "Python",
       "path": "code_search_net",
       "config_name": "python",
-      "text_column": "func_code_string",
-      "label_column": "func_documentation_string",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      },
       "cache_dir": "Datasets/Python",
-      "task_type": "seq2seq"
+      "task_type": "text_generation"
     },
     "Ruby": {
       "dataset_name": "Ruby",
       "path": "code_search_net",
       "config_name": "ruby",
-      "text_column": "func_code_string",
-      "label_column": "func_documentation_string",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      },
       "cache_dir": "Datasets/Ruby",
-      "task_type": "seq2seq"
+      "task_type": "text_generation"
+    },
+    "MNIST": {
+      "dataset_name": "MNIST",
+      "path": "ylecun/mnist",
+      "config_name": "mnist",
+      "features": {
+        "first_column": "image",
+        "second_column": "label"
+      },
+      "cache_dir": "Datasets/MNIST",
+      "task_type": "image_classification"
     }
   }
 }

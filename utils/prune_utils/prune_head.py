@@ -13,7 +13,9 @@ def compute_heads_importance(model, model_config, dataloader):
     multihead_inputs_list = []
     multihead_outputs_list = []
     per_class_importance_list = [
-        torch.zeros(model.config.num_hidden_layers, model.config.num_attention_heads).to(model_config.device)
+        torch.zeros(
+            model.config.num_hidden_layers, model.config.num_attention_heads
+        ).to(model_config.device)
         for _ in range(model_config.num_labels)
     ]
     per_class_token_list = [0.0 for _ in range(model_config.num_labels)]
@@ -54,7 +56,7 @@ def compute_heads_importance(model, model_config, dataloader):
 
     for step, batch in enumerate(dataloader):
         is_embeds = "embeddings" in batch
-        
+
         if not is_embeds:
             input_ids = batch["input_ids"].to(model_config.device)
         else:
@@ -71,9 +73,15 @@ def compute_heads_importance(model, model_config, dataloader):
 
         # Do a forward pass (not with torch.no_grad() since we need gradients for importance score - see below)
         if not is_embeds:
-            outputs = model(input_ids, attention_mask=attention_mask, output_attentions=True)
+            outputs = model(
+                input_ids, attention_mask=attention_mask, output_attentions=True
+            )
         else:
-            outputs = model(inputs_embeds=embeddings, attention_mask=attention_mask, output_attentions=True)
+            outputs = model(
+                inputs_embeds=embeddings,
+                attention_mask=attention_mask,
+                output_attentions=True,
+            )
         all_attentions = outputs[1]
         logits = outputs[0]
 
@@ -93,7 +101,9 @@ def compute_heads_importance(model, model_config, dataloader):
         loss.backward()
 
         # Second, compute importance scores according to http://arxiv.org/abs/1905.10650
-        for layer, (mh_layer_input, mh_layer_output) in enumerate(zip(multihead_inputs_list, multihead_outputs_list)):
+        for layer, (mh_layer_input, mh_layer_output) in enumerate(
+            zip(multihead_inputs_list, multihead_outputs_list)
+        ):
             mh_layer_output_store = mh_layer_output
             reshaped_mh_layer_input = mh_layer_input.view(
                 actual_batch_size, seq_length, num_heads, head_size
@@ -125,7 +135,10 @@ def compute_heads_importance(model, model_config, dataloader):
                 end_idx = (head + 1) * head_size
 
                 value_weight_norm = torch.norm(
-                    model.bert.encoder.layer[layer].attention.self.value.weight[:, start_idx:end_idx])
+                    model.bert.encoder.layer[layer].attention.self.value.weight[
+                        :, start_idx:end_idx
+                    ]
+                )
                 each_head_importance[head] *= value_weight_norm.detach()
 
             head_importance[layer] += each_head_importance
@@ -169,14 +182,14 @@ def compute_heads_importance(model, model_config, dataloader):
         per_class_importance_list[i] /= norm_by_layer.unsqueeze(-1) + 1e-20
 
     head_importance = (head_importance - head_importance.min()) / (
-            head_importance.max() - head_importance.min()
+        head_importance.max() - head_importance.min()
     )
     head_importance = head_importance.cpu().numpy()
 
     for i in range(model_config.num_labels):
         per_class_importance_list[i] = (
-                                               per_class_importance_list[i] - per_class_importance_list[i].min()
-                                       ) / (per_class_importance_list[i].max() - per_class_importance_list[i].min())
+            per_class_importance_list[i] - per_class_importance_list[i].min()
+        ) / (per_class_importance_list[i].max() - per_class_importance_list[i].min())
     remove_hooks(handles)
     for i in range(model_config.num_labels):
         per_class_importance_list[i] = per_class_importance_list[i].cpu().numpy()
@@ -185,7 +198,11 @@ def compute_heads_importance(model, model_config, dataloader):
 
 
 def calculate_prune_head(arr, i, pruned_heads):
-    flattened_with_indices = [(value, index) for index, value in np.ndenumerate(arr) if index not in pruned_heads]
+    flattened_with_indices = [
+        (value, index)
+        for index, value in np.ndenumerate(arr)
+        if index not in pruned_heads
+    ]
 
     sorted_by_value = sorted(flattened_with_indices, key=lambda x: x[0])
     bottom_indices = sorted_by_value[:i]
@@ -212,17 +229,20 @@ def preprocess_prunehead(arr, num_layer):
 
 
 def head_importance_prunning(
-        model, model_config, dominant_concern, sparsity_ratio
+    model, model_config, dominant_concern, sparsity_ratio, gradually=True
 ):
     num_attention_heads = model.config.num_attention_heads
     num_hidden_layers = model.config.num_hidden_layers
     total_heads_to_prune = int(num_attention_heads * num_hidden_layers * sparsity_ratio)
-    
+
     if total_heads_to_prune >= 4 and total_heads_to_prune % 4 != 0:
         total_heads_to_prune -= 4 - (total_heads_to_prune % 4)
-        
-    num_steps = max(1, total_heads_to_prune // 4)
-    
+
+    if gradually:
+        num_steps = max(1, total_heads_to_prune // 4)
+    else:
+        num_steps = 1
+
     heads_per_step = int(total_heads_to_prune // num_steps)
     print(f"Total heads to prune: {total_heads_to_prune}")
 
@@ -234,10 +254,14 @@ def head_importance_prunning(
         else:
             current_heads_to_prune = heads_per_step
 
-        _, head_importance_list, _, _, _ = compute_heads_importance(model, model_config, dominant_concern)
-        preprocess_prunehead(head_importance_list, num_hidden_layers)
-
-        prune_list = calculate_prune_head(head_importance_list, current_heads_to_prune, pruned_heads)
+        _, head_importance_list, _, _, _ = compute_heads_importance(
+            model, model_config, dominant_concern
+        )
+        print(f"head importance list\n {head_importance_list}")
+        # preprocess_prunehead(head_importance_list, num_hidden_layers)
+        prune_list = calculate_prune_head(
+            head_importance_list, current_heads_to_prune, pruned_heads
+        )
         pruned_heads.update(prune_list)
 
         prune_head(model, prune_list)
@@ -270,7 +294,7 @@ def prune_heads(layer, heads):
 
 
 def zero_out_head_weights(
-        layer: nn.Linear, heads: Set[int], head_size: int, dim: int = 0
+    layer: nn.Linear, heads: Set[int], head_size: int, dim: int = 0
 ) -> nn.Linear:
     """
     Zero out the weights of the specified heads in the linear layer.

@@ -4,66 +4,32 @@ import random
 import numpy as np
 import pickle
 import torch.utils.data as data_utils
-from datasets import load_dataset
+from datasets import load_dataset, DatasetDict
 from utils.helper import DataConfig, ModelConfig, color_print, Paths
+from utils.dataset_utils.dataset import (
+    CustomEmbeddingDataset,
+    CustomImageDataset,
+    CustomTextDataset,
+    CustomCodeDataset,
+)
 from transformers import AutoTokenizer
 from tqdm.auto import tqdm
 import warnings
+
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 
-
-class CustomDataset(data_utils.Dataset):
-    def __init__(self, data, data_config):
-        self.data = data
-        self.data_config = data_config
-
-    def __len__(self):
-        return len(self.data[self.data_config.return_fields[0]])
-
-    def __getitem__(self, index):
-        return {key: self.data[key][index] for key in self.data_config.return_fields}
-
-
-class Embedding(data_utils.Dataset):
-    def __init__(self, embeddings, attention_mask=None, labels=None):
-        self.embeddings = embeddings
-        self.labels = labels
-        self.attention_mask = attention_mask
-
-    def __len__(self):
-        return len(self.embeddings)
-
-    def __getitem__(self, index):
-        return {"embeddings": self.embeddings[index],
-                "labels": self.labels[index],
-                "attention_mask": self.attention_mask[index]}
-
-
-def tokenize_dataset(raw_dataset, tokenizer, data_config):
+def tokenize_dataset(raw_dataset: DatasetDict, data_config: DataConfig):
     tokenized_datasets = {field: [] for field in data_config.return_fields}
-    for example in tqdm(raw_dataset, desc="Tokenizing dataset", ascii=True):
-        if data_config.task_type == "seq2seq":
-            inputs = tokenizer(
-                example[data_config.text_column],
-                padding="max_length",
-                truncation=True,
-                max_length=data_config.max_length,
-                return_tensors="pt",
-            )
-            targets = tokenizer(
-                example[data_config.label_column],
-                padding="max_length",
-                truncation=True,
-                max_length=data_config.max_length,
-                return_tensors="pt",
-            )
-            tokenized_datasets["input_ids"].append(inputs["input_ids"][0])
-            tokenized_datasets["attention_mask"].append(inputs["attention_mask"][0])
-            tokenized_datasets["labels"].append(targets["input_ids"][0])
-        else:
+    model_config = data_config.model_config
+    if model_config.model_name is not None:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_config.tokenizer_name, cache_dir=model_config.cache_dir
+        )
+    for example in tqdm(raw_dataset, desc="Processing dataset", ascii=True):
+        if data_config.task_type == "text_generation":
             tokens = tokenizer(
-                example[data_config.text_column],
+                example[data_config.first_column],
                 padding="max_length",
                 truncation=True,
                 max_length=data_config.max_length,
@@ -71,14 +37,51 @@ def tokenize_dataset(raw_dataset, tokenizer, data_config):
             )
             tokenized_datasets["input_ids"].append(tokens["input_ids"][0])
             tokenized_datasets["attention_mask"].append(tokens["attention_mask"][0])
-            tokenized_datasets["labels"].append(example[data_config.label_column])
-    return CustomDataset(tokenized_datasets, data_config)
+            targets = tokenizer(
+                example[data_config.second_column],
+                padding="max_length",
+                truncation=True,
+                max_length=data_config.max_length,
+                return_tensors="pt",
+            )
+            tokenized_datasets["summaries"].append(targets["input_ids"][0])
+        elif data_config.task_type == "text_classification":
+            tokens = tokenizer(
+                example[data_config.first_column],
+                padding="max_length",
+                truncation=True,
+                max_length=data_config.max_length,
+                return_tensors="pt",
+            )
+            tokenized_datasets["input_ids"].append(tokens["input_ids"][0])
+            tokenized_datasets["attention_mask"].append(tokens["attention_mask"][0])
+            tokenized_datasets["labels"].append(example[data_config.second_column])
+        elif data_config.task_type == "image_classification":
+            image = example[data_config.first_column]
+            image = image.resize((28, 28))
+            image = np.array(image)
+            tokenized_datasets["image"].append(image)
+            tokenized_datasets["labels"].append(example[data_config.second_column])
+
+    if data_config.task_type == "text_classification":
+        return CustomTextDataset(tokenized_datasets)
+    elif data_config.task_type == "text_generation":
+        return CustomTextDataset(tokenized_datasets)
+    elif data_config.task_type == "image_classification":
+        return CustomImageDataset(tokenized_datasets)
 
 
-# In[]: Define load datasets for pretrained
-def load_dataloader(dataset, tokenizer, data_config, shuffle=False, is_valid=False):
+def load_dataloader(
+    dataset: DatasetDict,
+    data_config: DataConfig,
+    shuffle: bool = False,
+    is_valid: bool = False,
+):
+    """
+    Define load datasets for pretrained.
+    """
     if is_valid:
-        tokenized_dataset = tokenize_dataset(dataset, tokenizer, data_config)
+        tokenized_dataset = tokenize_dataset(dataset, data_config)
         valid_size = int(len(tokenized_dataset) * data_config.valid_size)
         train_size = len(tokenized_dataset) - valid_size
         train_dataset, valid_dataset = data_utils.random_split(
@@ -86,28 +89,34 @@ def load_dataloader(dataset, tokenizer, data_config, shuffle=False, is_valid=Fal
         )
 
         train_dataloader = data_utils.DataLoader(
-            train_dataset, batch_size=data_config.batch_size, shuffle=True, num_workers=data_config.num_workers
+            train_dataset,
+            batch_size=data_config.batch_size,
+            shuffle=True,
+            num_workers=data_config.num_workers,
         )
         valid_dataloader = data_utils.DataLoader(
-            valid_dataset, batch_size=data_config.batch_size, shuffle=False, num_workers=data_config.num_workers
+            valid_dataset,
+            batch_size=data_config.batch_size,
+            shuffle=False,
+            num_workers=data_config.num_workers,
         )
         return train_dataloader, valid_dataloader
     else:
-        tokenized_dataset = tokenize_dataset(dataset, tokenizer, data_config)
+        tokenized_dataset = tokenize_dataset(dataset, data_config)
         dataloader = data_utils.DataLoader(
-            tokenized_dataset, batch_size=data_config.batch_size, shuffle=shuffle, num_workers=data_config.num_workers
+            tokenized_dataset,
+            batch_size=data_config.batch_size,
+            shuffle=shuffle,
+            num_workers=data_config.num_workers,
         )
         return dataloader
 
 
-def load_cached_dataset(data_config):
-    model_config = ModelConfig(data_config.dataset_name, data_config.device)
-
-    tokenizer = AutoTokenizer.from_pretrained(model_config.model_name, cache_dir=model_config.cache_dir)
+def load_cached_dataset(data_config: DataConfig):
     cached_dataset_path = data_config.cache_dir
-    
+
     if (
-            not data_config.is_cached() or not data_config.do_cache
+        not data_config.is_cached() or not data_config.do_cache
     ):  # If not cached, generate caches
         color_print(f"Downloading the Dataset {data_config.dataset_name}")
         dataset = load_dataset(**data_config.dataset_args)
@@ -115,7 +124,7 @@ def load_cached_dataset(data_config):
         torch.manual_seed(data_config.seed)
         np.random.seed(data_config.seed)
         random.seed(data_config.seed)
-    
+
         train_dataset = dataset["train"]
         test_dataset = dataset["test"]
 
@@ -125,30 +134,32 @@ def load_cached_dataset(data_config):
 
             train_size //= 20
             test_size //= 2
-            train_dataset, _ = data_utils.random_split(train_dataset, [train_size, len(train_dataset) - train_size],
-                                                       generator=torch.Generator().manual_seed(data_config.seed))
-            test_dataset, _ = data_utils.random_split(test_dataset, [test_size, len(test_dataset) - test_size],
-                                                      generator=torch.Generator().manual_seed(data_config.seed))
+            train_dataset, _ = data_utils.random_split(
+                train_dataset,
+                [train_size, len(train_dataset) - train_size],
+                generator=torch.Generator().manual_seed(data_config.seed),
+            )
+            test_dataset, _ = data_utils.random_split(
+                test_dataset,
+                [test_size, len(test_dataset) - test_size],
+                generator=torch.Generator().manual_seed(data_config.seed),
+            )
 
         if "validation" in dataset:
             valid_dataset = dataset["validation"]
-            train_dataloader = load_dataloader(
-                train_dataset, tokenizer, data_config, shuffle=True
-            )
-            valid_dataloader = load_dataloader(valid_dataset, tokenizer, data_config)
+            train_dataloader = load_dataloader(train_dataset, data_config, shuffle=True)
+            valid_dataloader = load_dataloader(valid_dataset, data_config)
         elif "valid" in dataset:
             valid_dataset = dataset["valid"]
-            train_dataloader = load_dataloader(
-                train_dataset, tokenizer, data_config, shuffle=True
-            )
-            valid_dataloader = load_dataloader(valid_dataset, tokenizer, data_config)
+            train_dataloader = load_dataloader(train_dataset, data_config, shuffle=True)
+            valid_dataloader = load_dataloader(valid_dataset, data_config)
         else:
             train_dataloader, valid_dataloader = load_dataloader(
-                train_dataset, tokenizer, data_config, is_valid=True
+                train_dataset, data_config, is_valid=True
             )
 
-        test_dataloader = load_dataloader(test_dataset, tokenizer, data_config)
-        
+        test_dataloader = load_dataloader(test_dataset, data_config)
+
         if data_config.do_cache:
             Paths.get_dir(cached_dataset_path)
             save_cache(train_dataloader, cached_dataset_path, "train.pkl")
@@ -165,9 +176,18 @@ def load_cached_dataset(data_config):
     return train_dataloader, valid_dataloader, test_dataloader
 
 
-def load_data(dataset_name, batch_size=32, valid_size=0.1, num_workers=4, pin_memory=True, seed=44, do_cache=True):
+def load_data(
+    model_config: ModelConfig,
+    batch_size: int = 32,
+    valid_size: float = 0.1,
+    num_workers: int = 4,
+    pin_memory: bool = True,
+    seed: int = 44,
+    do_cache: bool = True,
+    streaming: bool = False,
+):
     data_config = DataConfig(
-        dataset_name=dataset_name,
+        model_config=model_config,
         max_length=512,
         batch_size=batch_size,
         valid_size=valid_size,
@@ -175,13 +195,16 @@ def load_data(dataset_name, batch_size=32, valid_size=0.1, num_workers=4, pin_me
         pin_memory=pin_memory,
         seed=seed,
         do_cache=do_cache,
+        streaming=streaming,
     )
     return load_cached_dataset(data_config)
+
 
 def save_cache(data, cache_dir, filename):
     with open(path.join(cache_dir, filename), "wb") as f:
         pickle.dump(data, f)
     print(f"{filename} is cached.")
+
 
 def load_from_cache(cache_dir, filename):
     cache_path = path.join(cache_dir, filename)
@@ -192,6 +215,7 @@ def load_from_cache(cache_dir, filename):
         return data
     else:
         raise FileNotFoundError(f"{filename} not found in {cache_dir}")
+
 
 # def convert_dataset_labels_to_binary(dataloader, target_class, is_stratified=False):
 #     input_ids, attention_mask, labels = [], [], []
@@ -268,5 +292,17 @@ def load_from_cache(cache_dir, filename):
 
 
 torch.serialization.add_safe_globals(
-    [data_utils.DataLoader, data_utils.Subset, data_utils.RandomSampler, data_utils.BatchSampler,
-     data_utils.SequentialSampler, data_utils.default_collate, CustomDataset, DataConfig])
+    [
+        data_utils.DataLoader,
+        data_utils.Subset,
+        data_utils.RandomSampler,
+        data_utils.BatchSampler,
+        data_utils.SequentialSampler,
+        data_utils.default_collate,
+        CustomTextDataset,
+        CustomImageDataset,
+        CustomEmbeddingDataset,
+        CustomCodeDataset,
+        DataConfig,
+    ]
+)

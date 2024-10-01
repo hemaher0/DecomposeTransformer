@@ -15,7 +15,7 @@ def select_true_example(model, model_config, data_loader):
     sorted_input_embeddings = []
     sorted_output_embeddings = []
     sorted_attention_mask = []
-    
+
     correct_predictions = [[] for _ in range(num_labels)]
     model.eval()
 
@@ -23,7 +23,7 @@ def select_true_example(model, model_config, data_loader):
         inputs = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         attention_mask = batch["attention_mask"].to(device)
-        
+
         with torch.no_grad():
             outputs = model(
                 inputs, attention_mask=attention_mask, output_hidden_states=True
@@ -33,16 +33,18 @@ def select_true_example(model, model_config, data_loader):
             outputs.hidden_states[-1],
         )
         predictions = outputs.logits.argmax(dim=-1)
-        
+
         for i in range(len(labels)):
             if predictions[i] == labels[i]:
-                correct_predictions[labels[i].item()].append((
-                    outputs.logits[i, predictions[i]].item(),
-                    input_embeddings[i].cpu().numpy(),
-                    output_embeddings[i].cpu().numpy(),
-                    attention_mask[i].cpu().numpy()
-                ))
-        
+                correct_predictions[labels[i].item()].append(
+                    (
+                        outputs.logits[i, predictions[i]].item(),
+                        input_embeddings[i].cpu().numpy(),
+                        output_embeddings[i].cpu().numpy(),
+                        attention_mask[i].cpu().numpy(),
+                    )
+                )
+
     for i in range(num_labels):
         correct_predictions[i].sort(key=lambda x: x[0], reverse=True)
         sorted_input_embeds = [pred[1] for pred in correct_predictions[i]]
@@ -50,12 +52,13 @@ def select_true_example(model, model_config, data_loader):
 
         sorted_output_embeds = [pred[2] for pred in correct_predictions[i]]
         sorted_output_embeddings.append(sorted_output_embeds)
-        
+
         sorted_mask = [pred[3] for pred in correct_predictions[i]]
         sorted_attention_mask.append(sorted_mask)
         torch.cuda.empty_cache()
-        
+
     return sorted_input_embeddings, sorted_output_embeddings, sorted_attention_mask
+
 
 def extract_top_n_embeddings(extract_num, num_labels, embeds_list, mask_list):
     return_list1 = []
@@ -64,15 +67,16 @@ def extract_top_n_embeddings(extract_num, num_labels, embeds_list, mask_list):
         extracted_embeds = []
         extracted_mask = []
         for j in range(num_labels):
-            class_embeds = np.array(embeds_list[j][i:i+1])
+            class_embeds = np.array(embeds_list[j][i : i + 1])
             class_embeds_tensor = torch.tensor(class_embeds)
-            class_mask = np.array(mask_list[j][i:i+1])
+            class_mask = np.array(mask_list[j][i : i + 1])
             class_mask_tensor = torch.tensor(class_mask)
             extracted_embeds.append(class_embeds_tensor)
             extracted_mask.append(class_mask_tensor)
         return_list1.append(extracted_embeds)
         return_list2.append(extracted_mask)
     return return_list1, return_list2
+
 
 def extract_bottom_n_embeddings(extract_num, num_labels, embeds_list, mask_list):
     return_list1 = []
@@ -81,9 +85,13 @@ def extract_bottom_n_embeddings(extract_num, num_labels, embeds_list, mask_list)
         extracted_embeds = []
         extracted_mask = []
         for j in range(num_labels):
-            class_embeds = np.array(embeds_list[j][-(i+1):-i] or embeds_list[j][-(i+1):])
+            class_embeds = np.array(
+                embeds_list[j][-(i + 1) : -i] or embeds_list[j][-(i + 1) :]
+            )
             class_embeds_tensor = torch.tensor(class_embeds)
-            class_mask = np.array(mask_list[j][-(i+1):-i] or mask_list[j][-(i+1):])
+            class_mask = np.array(
+                mask_list[j][-(i + 1) : -i] or mask_list[j][-(i + 1) :]
+            )
             class_mask_tensor = torch.tensor(class_mask)
             extracted_embeds.append(class_embeds_tensor)
             extracted_mask.append(class_mask_tensor)
@@ -91,27 +99,33 @@ def extract_bottom_n_embeddings(extract_num, num_labels, embeds_list, mask_list)
         return_list2.append(extracted_mask)
     return return_list1, return_list2
 
+
 def get_decimal_precision(value):
     str_value = str(value)
     if "." in str_value:
         return len(str_value.split(".")[1])
     else:
         return 0
-    
+
+
 def perturb(embeds, eps, grad):
     perturbed_embeds = embeds - eps * grad.sign()
     return perturbed_embeds
 
+
 def calculate_gradient(model, input_embeds, attention_mask, target_class, device):
     input_embeds = input_embeds.clone().detach().requires_grad_(True).to(device)
     target = torch.tensor([target_class]).to(device)
-    outputs = model(inputs_embeds=input_embeds, attention_mask=attention_mask, labels=target)
+    outputs = model(
+        inputs_embeds=input_embeds, attention_mask=attention_mask, labels=target
+    )
     init_pred = outputs.logits.argmax(dim=-1)
     loss = outputs.loss
     model.zero_grad()
     loss.backward()
     data_grad = input_embeds.grad
     return loss, data_grad
+
 
 def fgsm_attack(
     model,
@@ -132,12 +146,11 @@ def fgsm_attack(
         model, input_embeds, attention_mask, target, device
     )
     first_diff_eps = math.inf
-    
+
     while targeted_eps <= max_eps:
         perturbed_embeds = perturb(input_embeds, targeted_eps, data_grad)
         adv_outputs = model(
-            inputs_embeds=perturbed_embeds,
-            attention_mask=attention_mask
+            inputs_embeds=perturbed_embeds, attention_mask=attention_mask
         )
         adv_pred = adv_outputs.logits.argmax(dim=-1)
 
@@ -152,12 +165,13 @@ def fgsm_attack(
 
     return targeted_eps, first_diff_eps
 
+
 def calculate_all_epsilon(
     model, model_config, logit_example, attention_mask, step_eps=0.01, max_eps=10.0
 ):
     num_labels = model_config.num_labels
     device = model_config.device
-    
+
     first_changed_list = []
     targeted_list = []
     for i in range(num_labels):
@@ -169,7 +183,17 @@ def calculate_all_epsilon(
                 targeted_temp.append((i, j, math.inf))
                 first_changed_temp.append((i, j, math.inf))
                 continue
-            eps, first_diff_eps = fgsm_attack(model, i, j, logit_example[i], attention_mask[i], 0.00, step_eps, max_eps, device)
+            eps, first_diff_eps = fgsm_attack(
+                model,
+                i,
+                j,
+                logit_example[i],
+                attention_mask[i],
+                0.00,
+                step_eps,
+                max_eps,
+                device,
+            )
             if eps >= max_eps:
                 targeted_temp.append((i, j, math.inf))
             else:
@@ -177,11 +201,22 @@ def calculate_all_epsilon(
             first_changed_temp.append((i, j, first_diff_eps))
         targeted_list.append(targeted_temp)
         first_changed_list.append(first_changed_temp)
-        
-    flat_targeted_list = [(source, target, eps) for sublist in targeted_list for source, target, eps in sublist if eps != math.inf]
-    flat_first_changed_list = [(source, target, eps) for sublist in first_changed_list for source, target, eps in sublist if eps != math.inf and eps - (2*step_eps) >=0.00]
-        
+
+    flat_targeted_list = [
+        (source, target, eps)
+        for sublist in targeted_list
+        for source, target, eps in sublist
+        if eps != math.inf
+    ]
+    flat_first_changed_list = [
+        (source, target, eps)
+        for sublist in first_changed_list
+        for source, target, eps in sublist
+        if eps != math.inf and eps - (2 * step_eps) >= 0.00
+    ]
+
     return flat_targeted_list, flat_first_changed_list
+
 
 def generate_example(
     model,
@@ -200,7 +235,7 @@ def generate_example(
 
     source_embedding = input_embeds[source].to(device)
     source_mask = attention_mask[source].to(device)
-    
+
     loss, data_grad = calculate_gradient(
         model, source_embedding, source_mask, target, device
     )
@@ -217,6 +252,7 @@ def generate_example(
     del source_embedding, loss, data_grad
     torch.cuda.empty_cache()
     return example_label, example_list, example_mask
+
 
 def adjust_examples(
     example_list,
@@ -260,7 +296,8 @@ def adjust_examples(
             example_list.pop(random_index)
             example_label.pop(random_index)
             example_mask.pop(random_index)
-            
+
+
 def make_example(
     model,
     model_config,
@@ -276,7 +313,7 @@ def make_example(
     extract_mask_list = []
     negative_eps = []
     positive_eps = []
-    
+
     positive_example_list = []
     positive_example_label = []
     positive_mask_list = []
@@ -295,7 +332,9 @@ def make_example(
     per_emb_positive_example_num = int(round(positive_num / extract_num))
     per_emb_negative_example_num = int(round(negative_num / extract_num))
 
-    input_embeds, _, attention_mask = select_true_example(model, model_config, data_loader)
+    input_embeds, _, attention_mask = select_true_example(
+        model, model_config, data_loader
+    )
     extracted_top_embed, extracted_top_mask = extract_top_n_embeddings(
         top_emb, class_num, input_embeds, attention_mask
     )
@@ -317,7 +356,7 @@ def make_example(
         )
         positive_eps.append(first_changed_eps)
         negative_eps.append(targeted_eps)
-    
+
     for i, input_embed in enumerate(extract_embed_list):
         for j, first_changed in enumerate(positive_eps[i]):
             per_positive_example_num = int(
@@ -387,7 +426,7 @@ def make_example(
     positive_mask_list = [tensor.squeeze(0) for tensor in positive_mask_list]
     negative_example_list = [tensor.squeeze(0) for tensor in negative_example_list]
     negative_mask_list = [tensor.squeeze(0) for tensor in negative_mask_list]
-    
+
     pos_embeddings = Embedding(
         positive_example_list, positive_mask_list, positive_example_label
     )

@@ -7,6 +7,7 @@ from torch.nn import Module
 import torch.nn.functional as F
 from functools import partial
 from utils.dataset_utils.sampling import SamplingDataset
+from utils.model_utils.propagate import propagate
 from utils.helper import ModelConfig
 import gc
 
@@ -198,45 +199,6 @@ def get_hook(method):
     return hook
 
 
-def propagate(model, dataloader, device, chunk_size=4):
-    all_outputs = []
-    chunk_outputs = []
-
-    model = model.to(device)
-    model.eval()
-
-    for batch in dataloader:
-        is_embeds = "embeddings" in batch
-
-        attn_mask = batch["attention_mask"].to(device)
-        if not is_embeds:
-            input_ids = batch["input_ids"].to(device)
-        else:
-            inputs_embeds = batch["embeddings"].to(device)
-
-        with torch.no_grad():
-            if not is_embeds:
-                output = model(
-                    input_ids, attention_mask=attn_mask, output_hidden_states=True
-                )
-            else:
-                output = model(
-                    inputs_embeds=inputs_embeds,
-                    attention_mask=attn_mask,
-                    output_hidden_states=True,
-                )
-            chunk_outputs.append(output.hidden_states[-1])
-            if len(chunk_outputs) == chunk_size:
-                all_outputs.append(torch.cat(chunk_outputs))
-                chunk_outputs = []
-    if chunk_outputs:
-        all_outputs.append(torch.cat(chunk_outputs))
-    all_outputs = torch.cat(all_outputs).cpu().detach().numpy()
-    torch.cuda.empty_cache()
-    gc.collect()
-    return all_outputs
-
-
 def prune_magnitude(
     model: Module,
     sparsity_ratio: float = 0.6,
@@ -289,7 +251,6 @@ def prune_concern_identification(
     layers = find_layers(
         model, include_layers=include_layers, exclude_layers=exclude_layers
     )
-    device = model_config.device
     handle_list = []
 
     method = Methods(sparsity_ratio)
@@ -305,35 +266,16 @@ def prune_concern_identification(
             "Batch sizes of dominant_concern and non_dominant_concern does not match."
         )
 
-    dominant_is_embeds = "embeddings" in dominant_batches[0]
-    non_dominant_is_embeds = "embeddings" in non_dominant_batches[0]
+    combined_batches = {}
+    keys = dominant_batches[0].keys()
 
-    if dominant_is_embeds != non_dominant_is_embeds:
-        raise ValueError(
-            "dominant_concern and non_dominant_concern must both contain either embeddings or input_ids."
+    for key in keys:
+        combined_batches[key] = torch.cat(
+            [batch[key] for batch in dominant_batches + non_dominant_batches]
         )
 
-    is_embeds = dominant_is_embeds
-
-    combined_attn_mask = torch.cat(
-        [batch["attention_mask"] for batch in dominant_batches + non_dominant_batches]
-    )
-    if not is_embeds:
-        combined_input_ids = torch.cat(
-            [batch["input_ids"] for batch in dominant_batches + non_dominant_batches]
-        )
-        combined_dataloader = [
-            {"input_ids": combined_input_ids, "attention_mask": combined_attn_mask}
-        ]
-    else:
-        combined_embeddings = torch.cat(
-            [batch["embeddings"] for batch in dominant_batches + non_dominant_batches]
-        )
-        combined_dataloader = [
-            {"embeddings": combined_embeddings, "attention_mask": combined_attn_mask}
-        ]
-
-    propagate(model, combined_dataloader, device, is_embeds)
+    combined_dataloader = [combined_batches]
+    propagate(model, combined_dataloader, model_config)
 
     for handle in handle_list:
         handle.remove()
@@ -374,18 +316,15 @@ def recover_tangling_identification(
     if len(dominant_batches) != len(non_dominant_batches):
         raise ValueError("Batch sizes of dominant_concern does not match.")
 
-    combined_input_ids = torch.cat(
-        [batch["input_ids"] for batch in dominant_batches + non_dominant_batches]
-    )
-    combined_attn_mask = torch.cat(
-        [batch["attention_mask"] for batch in dominant_batches + non_dominant_batches]
-    )
+    combined_dataloader = {}
+    keys = dominant_batches[0].keys()
 
-    combined_dataloader = [
-        {"input_ids": combined_input_ids, "attention_mask": combined_attn_mask}
-    ]
+    for key in keys:
+        combined_dataloader[key] = torch.cat(
+            [batch[key] for batch in dominant_batches + non_dominant_batches]
+        )
 
-    propagate(module, combined_dataloader, device)
+    propagate(module, combined_dataloader, model_config)
 
     for handle in handle_list:
         handle.remove()
@@ -409,7 +348,7 @@ def prune_wanda(
     for name, layer in layers.items():
         handle = layer.register_forward_hook(method.wanda)
         handle_list.append(handle)
-    propagate(model, dataloader, device)
+    propagate(model, dataloader, model_config)
 
     for handle in handle_list:
         handle.remove()

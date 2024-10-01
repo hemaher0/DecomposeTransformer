@@ -30,6 +30,7 @@ class SamplingDataset(IterableDataset):
         self.resample = resample
 
         first_batch = next(iter(dataloader))
+        self.keys = first_batch.keys()
         self.is_embeds = "embeddings" in first_batch
 
         torch.manual_seed(seed)
@@ -40,10 +41,7 @@ class SamplingDataset(IterableDataset):
         self.sampled_data = None
 
     def _sample_data(self) -> None:
-        sampled_ids = []
-        sampled_embeddings = []
-        sampled_masks = []
-        sampled_labels = []
+        sampled_data = {key: [] for key in self.keys}
 
         class_sample_counts = {}
         if self.positive_sample:
@@ -65,99 +63,54 @@ class SamplingDataset(IterableDataset):
 
         # Loop through batches and collect data
         for batch in self.dataloader:
-            if not self.is_embeds:
-                input_ids = batch["input_ids"]
-            else:
-                embeddings = batch["embeddings"]
-            attention_mask = batch["attention_mask"]
-            labels = batch["labels"]
+            labels = batch.get("labels", batch.get("summaries", None))
+
+            if labels is None:
+                raise ValueError(
+                    "The dataset must contain either 'labels' or 'summaries'."
+                )
 
             for class_id, target_count in class_sample_counts.items():
                 if total_sampled[class_id] >= target_count:
                     continue
 
                 mask = labels == class_id
-                if not self.is_embeds:
-                    selected_input_ids = input_ids[mask]
-                else:
-                    selected_embeddings = embeddings[mask]
-                selected_attention_mask = attention_mask[mask]
-                selected_labels = labels[mask]
 
-                num_selected = selected_labels.size(0)
+                num_selected = mask.sum().item()
+
                 if num_selected == 0:
                     continue
 
                 remaining_samples = target_count - total_sampled[class_id]
                 num_selected = min(num_selected, remaining_samples)
 
-                if not self.is_embeds:
-                    selected_input_ids = selected_input_ids[:num_selected]
-                else:
-                    selected_embeddings = selected_embeddings[:num_selected]
-                selected_attention_mask = selected_attention_mask[:num_selected]
-                selected_labels = selected_labels[:num_selected]
+                for key in self.keys:
+                    selected_items = batch[key][mask][:num_selected]
+                    sampled_data[key].append(selected_items)
 
                 total_sampled[class_id] += num_selected
 
-                if num_selected > 0:
-                    if not self.is_embeds:
-                        sampled_ids.append(selected_input_ids)
-                    else:
-                        sampled_embeddings.append(selected_embeddings)
-                    sampled_masks.append(selected_attention_mask)
-                    sampled_labels.append(selected_labels)
-
         # Concatenate all collected data outside the loop
-        if sampled_labels:
-            if not self.is_embeds:
-                sampled_ids = torch.cat(sampled_ids)
-            else:
-                sampled_embeddings = torch.cat(sampled_embeddings)
-            sampled_masks = torch.cat(sampled_masks)
-            sampled_labels = torch.cat(sampled_labels)
+        for key in self.keys:
+            if sampled_data[key]:
+                sampled_data[key] = torch.cat(sampled_data[key])
 
         self.sampled_data = []
-        num_batches = len(sampled_labels) // self.batch_size
+        num_batches = len(sampled_data["labels"]) // self.batch_size
         for i in range(num_batches):
             start_idx = i * self.batch_size
             end_idx = start_idx + self.batch_size
 
-            masks = sampled_masks[start_idx:end_idx]
-            labels = sampled_labels[start_idx:end_idx]
+            batch_dict = {
+                key: sampled_data[key][start_idx:end_idx] for key in self.keys
+            }
+            self.sampled_data.append(batch_dict)
 
-            if not self.is_embeds:
-                input_ids = sampled_ids[start_idx:end_idx]
-                self.sampled_data.append(
-                    {
-                        "input_ids": input_ids,
-                        "attention_mask": masks,
-                        "labels": labels,
-                    }
-                )
-            else:
-                embeddings = sampled_embeddings[start_idx:end_idx]
-                self.sampled_data.append(
-                    {
-                        "embeddings": embeddings,
-                        "attention_mask": masks,
-                        "labels": labels,
-                    }
-                )
-
-        if len(sampled_labels) % self.batch_size != 0:
-            if not self.is_embeds:
-                remaining_batch = {
-                    "input_ids": sampled_ids[num_batches * self.batch_size :],
-                    "attention_mask": sampled_masks[num_batches * self.batch_size :],
-                    "labels": sampled_labels[num_batches * self.batch_size :],
-                }
-            else:
-                remaining_batch = {
-                    "embeddings": sampled_embeddings[num_batches * self.batch_size :],
-                    "attention_mask": sampled_masks[num_batches * self.batch_size :],
-                    "labels": sampled_labels[num_batches * self.batch_size :],
-                }
+        if len(sampled_data["labels"]) % self.batch_size != 0:
+            remaining_batch = {
+                key: sampled_data[key][num_batches * self.batch_size :]
+                for key in self.keys
+            }
             self.sampled_data.append(remaining_batch)
 
     def __iter__(self) -> Generator[Dict[str, torch.Tensor], None, None]:

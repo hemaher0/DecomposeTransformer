@@ -12,4 +12,3 @@ def save_module(module, save_path, module_name):
 def load_module(module_class, save_path, module_name, device="cpu"):
     load_path = os.path.join(save_path, module_name)
     return module_class.from_pretrained(save_path, map_location=device)
-    

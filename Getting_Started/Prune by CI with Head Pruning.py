@@ -16,9 +16,7 @@ from utils.model_utils.save_module import save_module
 from utils.model_utils.load_model import load_model
 from utils.model_utils.evaluate import evaluate_model, get_sparsity, similar
 from utils.dataset_utils.sampling import SamplingDataset
-from utils.prune_utils.prune_head import (
-    head_importance_prunning
-)
+from utils.prune_utils.prune_head import head_importance_prunning
 from utils.prune_utils.prune import prune_concern_identification
 
 
@@ -53,10 +51,7 @@ def main():
         help="Sparsity ratio for Head pruning",
     )
     parser.add_argument(
-        "--ci_ratio",
-        type=float,
-        default=0.3,
-        help="Sparsity ratio for CI"
+        "--ci_ratio", type=float, default=0.3, help="Sparsity ratio for CI"
     )
     parser.add_argument(
         "--seed",
@@ -78,7 +73,7 @@ def main():
         default=["attention"],
         help="Layers to exclude for pruning",
     )
-    
+
     args = parser.parse_args()
 
     name = args.name
@@ -92,16 +87,20 @@ def main():
     seed = args.seed
     include_layers = args.include_layers
     exclude_layers = args.exclude_layers
-    
+
     color_print("Start Time:" + datetime.now().strftime("%H:%M:%S"))
-    
+
     model_config = ModelConfig(name, device)
     num_labels = model_config.num_labels
-    
+
     model, tokenizer, checkpoint = load_model(model_config)
 
     train_dataloader, valid_dataloader, test_dataloader = load_data(
-        model_config.dataset_name, batch_size=batch_size, num_workers=num_workers, do_cache=True, seed=seed
+        model_config.dataset_name,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        do_cache=True,
+        seed=seed,
     )
 
     color_print("Evaluate the original model")
@@ -111,20 +110,42 @@ def main():
     color_print("#Module " + str(concern) + " in progress....")
 
     positive_samples = SamplingDataset(
-        train_dataloader, concern, num_samples, num_labels, True, 4, device=device, resample=False, seed=seed
+        train_dataloader,
+        concern,
+        num_samples,
+        num_labels,
+        True,
+        4,
+        device=device,
+        resample=False,
+        seed=seed,
     )
     negative_samples = SamplingDataset(
-        train_dataloader, concern, num_samples, num_labels, False, 4, device=device, resample=False, seed=seed
+        train_dataloader,
+        concern,
+        num_samples,
+        num_labels,
+        False,
+        4,
+        device=device,
+        resample=False,
+        seed=seed,
     )
     all_samples = SamplingDataset(
-        train_dataloader, 200, num_samples, num_labels, False, 4, device=device, resample=False, seed=seed
+        train_dataloader,
+        200,
+        num_samples,
+        num_labels,
+        False,
+        4,
+        device=device,
+        resample=False,
+        seed=seed,
     )
 
     module = copy.deepcopy(model)
 
-    head_importance_prunning(
-        module, model_config, positive_samples, head_pruning_ratio
-    )
+    head_importance_prunning(module, model_config, positive_samples, head_pruning_ratio)
 
     prune_concern_identification(
         module,
@@ -138,9 +159,18 @@ def main():
 
     color_print(f"Evaluate the pruned model {concern}")
     result = evaluate_model(module, model_config, test_dataloader)
-    similar(model, module, valid_dataloader, concern, num_samples, num_labels, device=device, seed=seed)
+    similar(
+        model,
+        module,
+        valid_dataloader,
+        concern,
+        num_samples,
+        num_labels,
+        device=device,
+        seed=seed,
+    )
     print(get_sparsity(module)[0])
-    
+
     # save_module(module, "Modules/", f"head_pruned_ci_{name}_{head_pruning_ratio}p_{ci_ratio}p_class{concern}")
     torch.cuda.empty_cache()
 

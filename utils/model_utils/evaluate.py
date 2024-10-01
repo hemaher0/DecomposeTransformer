@@ -12,6 +12,12 @@ from utils.prune_utils.prune import find_layers, propagate
 from utils.dataset_utils.sampling import SamplingDataset
 from utils.model_utils.CKA import linear_CKA, kernel_CKA
 from utils.model_utils.cca_core import get_cca_similarity
+from utils.model_utils.propagate import (
+    propagate_embeddings,
+    propagate_image_classifier,
+    propagate_text_classifier,
+)
+from utils.helper import ModelConfig
 
 
 def compute_metrics(pred):
@@ -21,50 +27,40 @@ def compute_metrics(pred):
     return {"accuracy": accuracy}
 
 
-def evaluate_model(
-    model, model_config, test_dataloader, is_binary=False
-):
+def evaluate_model(model, model_config, test_dataloader, is_binary=False):
     model.eval()
-    input_ids = None
-    embeddings = None
     total_loss = 0
     total_samples = 0
     all_preds = []
     all_labels = []
+    device = model_config.device
 
     loss_fn = nn.CrossEntropyLoss()
-    model = model.to(model_config.device)
+    model = model.to(device)
+    task_type = model_config.task_type
 
     for idx, batch in enumerate(
         tqdm(test_dataloader, desc="Evaluating the model", dynamic_ncols=True)
     ):
         is_embeds = "embeddings" in batch
 
-        if not is_embeds:
-            input_ids = batch["input_ids"].to(model_config.device)
-            batch_size = input_ids.size(0)
-        else:
-            embeddings = batch["embeddings"].to(model_config.device)
-            batch_size = embeddings.size(0)
-
-        attention_mask = batch["attention_mask"].to(model_config.device)
-        labels = batch["labels"]
-        
-        if isinstance(labels, int):
-            labels = torch.tensor([labels]).to(model_config.device)
-        else:
-            labels = labels.to(model_config.device)
-        
+        if task_type == "text_classification":
+            if is_embeds:
+                outputs, labels = propagate_embeddings(model, batch, device)
+            else:
+                outputs, labels = propagate_text_classifier(model, batch, device)
+        elif task_type == "image_classification":
+            outputs, labels = propagate_image_classifier(model, batch, device)
+        batch_size = labels.size(0)
         total_samples += batch_size
 
         with torch.no_grad():
-            if not is_embeds:
-                outputs = model(input_ids, attention_mask=attention_mask)
-                del input_ids
-            else:
-                outputs = model(inputs_embeds=embeddings, attention_mask=attention_mask)
-                del embeddings
-            logits = outputs.logits
+
+            logits = (
+                outputs.get("logits")
+                if isinstance(outputs, dict)
+                else getattr(outputs, "logits", outputs)
+            )
 
             loss = loss_fn(logits, labels)
             pred = logits.argmax(dim=1)
@@ -73,7 +69,7 @@ def evaluate_model(
             all_preds.extend(pred.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
-        del attention_mask, labels, logits, outputs, loss, pred
+        del labels, logits, outputs, loss, pred
         torch.cuda.empty_cache()
 
     avg_loss = total_loss / total_samples
@@ -132,9 +128,10 @@ def similar(
     concern: int,
     num_samples,
     num_labels,
-    device: torch.device = torch.device("cpu"),
+    model_config: ModelConfig,
     seed=44,
 ) -> None:
+    device = model_config.device
     positive_samples = SamplingDataset(
         dataloader,
         concern,
@@ -157,10 +154,10 @@ def similar(
         resample=False,
         seed=seed,
     )
-    concern_outputs1 = propagate(model, positive_samples, device)
-    concern_outputs2 = propagate(module, positive_samples, device)
-    non_concern_outputs1 = propagate(model, negative_samples, device)
-    non_concern_outputs2 = propagate(module, negative_samples, device)
+    concern_outputs1 = propagate(model, positive_samples, model_config)
+    concern_outputs2 = propagate(module, positive_samples, model_config)
+    non_concern_outputs1 = propagate(model, negative_samples, model_config)
+    non_concern_outputs2 = propagate(module, negative_samples, model_config)
 
     hidden_states = lambda x, y: (
         x.reshape(-1, x.shape[-1]).T,

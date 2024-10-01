@@ -7,9 +7,7 @@
 .cache/*
 __pycache__
 /Datasets/
-/nohup.out
 /Models/
 /Modules/
-/Miniconda*
 /Logs/
 *.pkl
