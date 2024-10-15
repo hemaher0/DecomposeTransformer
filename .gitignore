@@ -1,0 +1,11 @@
+
+.ipynb_checkpoints
+.idea/
+.uuid
+.cache
+__pycache__
+/checkpoints/
+/models
+/results/
+/datasets/
+*.pkl

@@ -1,0 +1,141 @@
+{
+  "model": {
+    "text_classification": {
+      "OSDG": {
+        "model_name": {
+          "OSDG": "sadickam/sdg-classification-bert"
+        },
+        "tokenizer_name": "sadickam/sdg-classification-bert",
+        "architectures": "bert",
+        "dataset_name": "OSDG",
+        "num_labels": 16
+      },
+      "YahooAnswersTopics": {
+        "model_name": {
+          "YahooAnswersTopics": "fabriceyhc/bert-base-uncased-yahoo_answers_topics",
+          "bert-4-128-yahoo": "models/bert-4-128-yahoo",
+          "bert-6-128-yahoo": "models/bert-6-128-yahoo",
+          "bert-small-yahoo": "models/bert-small-yahoo",
+          "bert-tiny-yahoo": "models/bert-tiny-yahoo",
+          "bert-mini-yahoo": "models/bert-mini-yahoo"
+        },
+        "tokenizer_name": "fabriceyhc/bert-base-uncased-yahoo_answers_topics",
+        "architectures": "bert",
+        "dataset_name": "YahooAnswersTopics",
+        "num_labels": 10
+      },
+      "IMDB": {
+        "model_name": {
+          "IMDB": "textattack/bert-base-uncased-imdb"
+        },
+        "tokenizer_name": "textattack/bert-base-uncased-imdb",
+        "architectures": "bert",
+        "dataset_name": "IMDB",
+        "num_labels": 2
+      }
+    },
+    "text_generation": {
+      "code_search_net": {
+        "model_name": {
+          "code_search_net": "Salesforce/codet5-base-multi-sum"
+        },
+        "tokenizer_name": "Salesforce/codet5-base-multi-sum",
+        "architectures": "T5",
+        "dataset_name": "Go",
+        "num_labels": 6
+      }
+    },
+    "image_classification": {
+      "MNIST": {
+        "model_name": {
+          "MNIST": "Models/MNIST"
+        },
+        "architectures": "SimpleDNN",
+        "dataset_name": "MNIST",
+        "num_labels": 10
+      }
+    }
+  },
+  "dataset": {
+    "OSDG": {
+      "path": "albertmartinez/OSDG",
+      "config_name": "2024-01-01",
+      "features": {
+        "first_column": "text",
+        "second_column": "labels"
+      }
+    },
+    "YahooAnswersTopics": {
+      "path": "yahoo_answers_topics",
+      "config_name": "yahoo_answers_topics",
+      "features": {
+        "first_column": "question_title",
+        "second_column": "topic"
+      }
+    },
+    "IMDB": {
+      "path": "imdb",
+      "config_name": "plain_text",
+      "features": {
+        "first_column": "text",
+        "second_column": "label"
+      }
+    },
+    "Go": {
+      "path": "code_search_net",
+      "config_name": "go",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      }
+    },
+    "Java": {
+      "path": "code_search_net",
+      "config_name": "java",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      }
+    },
+    "Javascript": {
+      "path": "code_search_net",
+      "config_name": "javascript",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      }
+    },
+    "PHP": {
+      "path": "code_search_net",
+      "config_name": "php",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      }
+    },
+    "Python": {
+      "path": "code_search_net",
+      "config_name": "python",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      }
+    },
+    "Ruby": {
+      "path": "code_search_net",
+      "config_name": "ruby",
+      "features": {
+        "first_column": "func_code_string",
+        "second_column": "func_documentation_string"
+      }
+    },
+    "MNIST": {
+      "path": "ylecun/mnist",
+      "config_name": "mnist",
+      "features": {
+        "first_column": "image",
+        "second_column": "label"
+      }
+    }
+  }
+}
