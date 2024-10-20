@@ -5,12 +5,12 @@ import nbformat
 import chardet
 import os
 
-os.chdir("../../")
+os.chdir("../../../")
 
 variables = {
     "method": [
-        "Prune by CI(attention, feedforward)",
         "Prune by CI(attention only)",
+        "Prune by CI(attention, feedforward)",
         "Prune by CI(feedforward only)",
         "Prune by magnitude",
         "Prune by wanda",
@@ -22,7 +22,7 @@ variables = {
         "bert-small-yahoo",
         "bert-tiny-yahoo",
         "IMDB",
-        "Yahoo",
+        "YahooAnswersTopics",
         "OSDG",
     ],
     "ratio": ["30%", "40%", "50%", "60%"],
@@ -34,7 +34,9 @@ file_list = []
 for method in variables["method"]:
     for model in variables["model"]:
         for ratio in variables["ratio"]:
-            file_name = f"experiments/ipynbs/Unstructed Pruning/{method}/{model}/{method}({ratio}).ipynb"
+            file_name = (
+                f"experiments/ipynbs/Unstructed Pruning/{method}/{model}/{ratio}.ipynb"
+            )
             file_list.append(file_name)
 
 script_start_time = datetime.now()
@@ -71,13 +73,13 @@ for file in file_list:
         with open(file_path, "r", encoding="utf-8") as f:
             nb = nbformat.read(f, as_version=4)
 
-    # # Execute the notebook
-    # pm.execute_notebook(str(file_path), str(file_path))
+    # Execute the notebook
+    pm.execute_notebook(str(file_path), str(file_path))
 
-    # # Record the end time and calculate duration
-    # notebook_end_time = datetime.now()
-    # duration = notebook_end_time - notebook_start_time
+    # Record the end time and calculate duration
+    notebook_end_time = datetime.now()
+    duration = notebook_end_time - notebook_start_time
 
-    # # Output the time taken
-    # print(f"End time: {notebook_end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    # print(f"Duration: {duration}\n")
+    # Output the time taken
+    print(f"End time: {notebook_end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Duration: {duration}\n")

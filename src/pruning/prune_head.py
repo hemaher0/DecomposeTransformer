@@ -4,7 +4,10 @@ import numpy as np
 from typing import *
 import torch.nn as nn
 from functools import partial
-from transformers.pytorch_utils import find_pruneable_heads_and_indices
+from transformers.pytorch_utils import (
+    find_pruneable_heads_and_indices,
+    prune_linear_layer,
+)
 
 
 def calculate_head_importance(
@@ -93,20 +96,7 @@ def calculate_head_importance(
 
         tot_tokens += input_mask.float().detach().sum().data
 
-    for layer_idx in range(model.bert.config.num_hidden_layers):
-        for head in range(n_heads):
-            start_idx = head * head_dim
-            end_idx = (head + 1) * head_dim
-
-            value_weight_norm = torch.norm(
-                model.bert.encoder.layer[layer_idx].attention.self.value.weight[
-                    :, start_idx:end_idx
-                ]
-            )
-            head_importance[layer_idx] += value_weight_norm.detach()
-
     head_importance[:-1] /= tot_tokens
-
     # Layerwise importance normalization
     if normalize_scores_by_layer:
         exponent = 2
@@ -115,75 +105,87 @@ def calculate_head_importance(
         )
         head_importance /= norm_by_layer.unsqueeze(-1) + 1e-20
 
+    # for layer_idx in range(model.bert.config.num_hidden_layers):
+    #     head_importance[layer_idx] *= torch.norm(model.bert.encoder.layer[layer_idx].attention.self.value.weight)
+
+    for layer_idx in range(model.bert.config.num_hidden_layers):
+        for head in range(n_heads):
+            start_idx = head * head_dim
+            end_idx = (head + 1) * head_dim
+            value_weight_norm = torch.norm(
+                model.bert.encoder.layer[layer_idx].attention.self.value.weight[
+                    :, start_idx:end_idx
+                ]
+            )
+            # head_importance[layer_idx] += value_weight_norm.detach()
+            head_importance[layer_idx][start_idx:end_idx] += torch.min(
+                head_importance[layer_idx]
+            )
+            head_importance[layer_idx][start_idx:end_idx] /= torch.max(
+                head_importance[layer_idx]
+            ) + torch.min(head_importance[layer_idx])
+
     for handle in forward_handles:
         handle.remove()
     return head_importance
 
 
-def calculate_prune_head(arr, i, pruned_heads):
-    flattened_with_indices = [
-        (value, index)
-        for index, value in np.ndenumerate(arr)
-        if index not in pruned_heads
-    ]
-
-    sorted_by_value = sorted(flattened_with_indices, key=lambda x: x[0])
-    bottom_indices = sorted_by_value[:i]
-
-    bottom_indices_only = [index for _, index in bottom_indices]
-
-    return bottom_indices_only
-
-
-def prune_head(model, prune_list):
-    for layer_index, head_index in prune_list:
-        prune_heads(model.bert.encoder.layer[layer_index].attention, ([head_index]))
-    return model
-
-
 def head_importance_prunning(
-    model, config, dominant_concern, sparsity_ratio, gradually=True
+    model, config, dominant_concern, sparsity_ratio, method="unstructed", scheduler=None
 ):
     num_attention_heads = model.config.num_attention_heads
     num_hidden_layers = model.config.num_hidden_layers
     model = model.to(config.device)
     total_heads_to_prune = int(num_attention_heads * num_hidden_layers * sparsity_ratio)
 
-    if total_heads_to_prune >= 4 and total_heads_to_prune % 4 != 0:
-        total_heads_to_prune -= 4 - (total_heads_to_prune % 4)
-
-    if gradually:
-        num_steps = max(1, total_heads_to_prune // 4)
-    else:
-        num_steps = 1
-
-    heads_per_step = int(total_heads_to_prune // num_steps)
+    total_heads_to_prune = max(total_heads_to_prune, num_hidden_layers)
     print(f"Total heads to prune: {total_heads_to_prune}")
-
     pruned_heads = set()
 
-    for step in range(num_steps):
-        if step == num_steps - 1:
-            current_heads_to_prune = total_heads_to_prune - (step * heads_per_step)
-        else:
-            current_heads_to_prune = heads_per_step
+    if scheduler is not None:
+        steps = scheduler.get_steps()
+    else:
+        steps = [1.0]
+
+    for step_ratio in steps:
+        heads_to_prune = int(total_heads_to_prune * step_ratio)
 
         head_importance_list = calculate_head_importance(
             model, config, dominant_concern
         )
-        # print(f"head importance list\n {head_importance_list}")
         head_importance_list = head_importance_list.cpu()
-        # preprocess_prunehead(head_importance_list, num_hidden_layers)
-        prune_list = calculate_prune_head(
-            head_importance_list, current_heads_to_prune, pruned_heads
-        )
-        pruned_heads.update(prune_list)
+        print(head_importance_list)
 
-        prune_head(model, prune_list)
+        if method == "unstructed":
+            sorted_indices = torch.argsort(head_importance_list.view(-1))
+            prune_list = [
+                (int(idx // num_attention_heads), int(idx % num_attention_heads))
+                for idx in sorted_indices[:heads_to_prune]
+            ]
+        elif method == "structed":
+            heads_per_layer = heads_to_prune // num_hidden_layers
+            prune_list = []
+            for layer_idx in range(num_hidden_layers):
+                sorted_heads = torch.argsort(head_importance_list[layer_idx])
+                prune_list.extend(
+                    [
+                        (layer_idx, head.item())
+                        for head in sorted_heads[:heads_per_layer]
+                    ]
+                )
+
+        for layer_index, head_index in prune_list:
+            if (layer_index, head_index) not in pruned_heads:
+                prune_heads(
+                    model.bert.encoder.layer[layer_index].attention,
+                    [head_index],
+                    method=method,
+                )
+                pruned_heads.add((layer_index, head_index))
     print(pruned_heads)
 
 
-def prune_heads(layer, heads):
+def prune_heads(layer, heads, method):
     if len(heads) == 0:
         return
     heads, index = find_pruneable_heads_and_indices(
@@ -193,7 +195,7 @@ def prune_heads(layer, heads):
         layer.pruned_heads,
     )
 
-    # Zero out weights in linear layers instead of pruning
+    # if method == "unstructed":
     layer.self.query = zero_out_head_weights(
         layer.self.query, heads, layer.self.attention_head_size
     )
@@ -206,6 +208,15 @@ def prune_heads(layer, heads):
     layer.output.dense = zero_out_head_weights(
         layer.output.dense, heads, layer.self.attention_head_size, dim=1
     )
+    # elif method == "structed":
+    #     layer.self.query = prune_linear_layer(layer.self.query, index)
+    #     layer.self.key = prune_linear_layer(layer.self.key, index)
+    #     layer.self.value = prune_linear_layer(layer.self.value, index)
+    #     layer.output.dense = prune_linear_layer(layer.output.dense, index)
+
+    #     layer.self.num_attention_heads = layer.self.num_attention_heads - len(heads)
+    #     layer.self.all_head_size = layer.self.attention_head_size *  layer.self.num_attention_heads
+    #     layer.pruned_heads = layer.pruned_heads.union(heads)
 
 
 def zero_out_head_weights(

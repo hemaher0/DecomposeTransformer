@@ -154,7 +154,7 @@ def get_sparsity(model, layer_types=None, include_layers=None, exclude_layers=No
 
     overall_sparsity = total_sparsity / total_params if total_params != 0 else 0
     print(overall_sparsity)
-    print(sparsity)
+    print(sparsity_dict)
     return overall_sparsity, sparsity_dict
 
 
