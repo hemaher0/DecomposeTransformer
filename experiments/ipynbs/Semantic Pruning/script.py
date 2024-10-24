@@ -17,12 +17,9 @@ variables = {
         'Prune by Head Pruning only with Generated samples',
     ],
     "model": [
-        "bert-4-128-yahoo",
-        "bert-6-128-yahoo",
-        "bert-mini-yahoo",
-        "bert-small-yahoo",
+        # "bert-4-128-yahoo",
+        # "bert-6-128-yahoo",
         "bert-tiny-yahoo",
-        "YahooAnswersTopics",
     ],
     "ratio": ["30%", "40%", "50%", "60%"],
 }
@@ -30,8 +27,8 @@ variables = {
 
 file_list = []
 
-for method in variables["method"]:
-    for model in variables["model"]:
+for model in variables["model"]:
+    for method in variables["method"]:
         for ratio in variables["ratio"]:
             file_name = (
                 f"experiments/ipynbs/Semantic Pruning/{method}/{model}/{ratio}.ipynb"

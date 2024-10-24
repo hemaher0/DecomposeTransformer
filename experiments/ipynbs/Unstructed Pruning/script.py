@@ -31,8 +31,8 @@ variables = {
 
 file_list = []
 
-for method in variables["method"]:
-    for model in variables["model"]:
+for model in variables["model"]:
+    for method in variables["method"]:
         for ratio in variables["ratio"]:
             file_name = (
                 f"experiments/ipynbs/Unstructed Pruning/{method}/{model}/{ratio}.ipynb"

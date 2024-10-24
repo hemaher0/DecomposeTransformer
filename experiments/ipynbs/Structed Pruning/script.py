@@ -17,11 +17,11 @@ variables = {
         'Prune by CI(feedforward only, squeeze)'
     ],
     "model": [
-        "bert-4-128-yahoo",
-        "bert-6-128-yahoo",
-        "bert-mini-yahoo",
-        "bert-small-yahoo",
-        "bert-tiny-yahoo",
+        # "bert-4-128-yahoo",
+        # "bert-6-128-yahoo",
+        # "bert-mini-yahoo",
+        # "bert-small-yahoo",
+        # "bert-tiny-yahoo",
         "IMDB",
         "YahooAnswersTopics",
         "OSDG",
@@ -32,8 +32,8 @@ variables = {
 
 file_list = []
 
-for method in variables["method"]:
-    for model in variables["model"]:
+for model in variables["model"]:
+    for method in variables["method"]:
         for ratio in variables["ratio"]:
             file_name = (
                 f"experiments/ipynbs/Structed Pruning/{method}/{model}/{ratio}.ipynb"
