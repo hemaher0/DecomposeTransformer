@@ -68,10 +68,9 @@ class Pruner:
         ).reshape(1, -1)
 
         sine_similarity = torch.sqrt(1 - cosine_similarity**2)
-        distance = torch.sqrt(concern_norm**2 + non_concern_norm**2)
+        alpha = (cosine_similarity * sine_similarity) / (cosine_similarity - sine_similarity) 
         coefficient = (
-            concern_norm
-            + sine_similarity * torch.abs(concern_norm + non_concern_norm) / distance
+            concern_norm +  alpha * non_concern_norm
         )
 
         importance_score = torch.abs(current_weight) * torch.abs(coefficient)

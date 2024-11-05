@@ -87,7 +87,7 @@ def calculate_head_importance(
             grad_ctx = gradients[f"context_layer_{layer_idx}"]
             shape = ctx.shape
             ctx = reshape(ctx, shape, n_heads)
-            grad_ctx = reshape(ctx, shape, n_heads)
+            grad_ctx = reshape(grad_ctx, shape, n_heads)
 
             # Take the dot
             dot = torch.einsum("bhli,bhli->bhl", [grad_ctx, ctx])
